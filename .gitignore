@@ -1,6 +1,13 @@
 # Environment variables (CRITICAL - contains API keys)
 .env
 
+# Claude Code specific files (keep local only)
+.claude/
+.agents/
+CLAUDE.md
+PRD.md
+MVP-tool-designs.md
+
 # Python cache
 __pycache__/
 *.py[cod]
