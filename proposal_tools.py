@@ -402,23 +402,41 @@ async def search_relevant_projects(
 
         print(f"[SEARCH] Found {len(matches)} matches (scores: {[round(m.relevance_score, 3) for m in matches]})")
 
-        return ProjectSearchResults(
-            matches=matches,
-            total_found=len(matches),
-            search_query=query,
-            filters_applied=filters_applied
-        ).model_dump_json()
+        # Return FORMATTED TEXT instead of JSON (PydanticAI pattern)
+        formatted_results = []
+        for match in matches:
+            tech_str = ", ".join(match.technologies_used) if match.technologies_used else "N/A"
+            metric_str = match.key_metric if match.key_metric else "N/A"
+
+            project_text = f"""# {match.project_name}
+**Project Type:** {match.project_type}
+**Industry:** {match.industry}
+**Technologies:** {tech_str}
+**Key Metric:** {metric_str}
+**Relevance Score:** {match.relevance_score:.2f}
+
+{match.summary if match.summary else 'No summary available.'}
+"""
+            formatted_results.append(project_text)
+
+        results_text = "\n\n---\n\n".join(formatted_results)
+
+        filters_str = ", ".join([f"{k}={v}" for k, v in filters_applied.items()]) if filters_applied else "None"
+
+        header = f"""Search Results for: "{query}"
+Filters Applied: {filters_str}
+Total Matches: {len(matches)}
+
+==========================================
+
+"""
+        return header + results_text
 
     except Exception as e:
         print(f"Error in search_relevant_projects: {e}")
         import traceback
         traceback.print_exc()
-        return ProjectSearchResults(
-            matches=[],
-            total_found=0,
-            search_query=query,
-            filters_applied={}
-        ).model_dump_json()
+        return f"Error searching projects: {str(e)}\n\nNo projects found for query: '{query}'"
 
 
 # ========== Tool 3: Get Project Details ==========
@@ -576,13 +594,88 @@ async def get_project_details(
 
 # ========== Tool 4: Generate Content ==========
 
+def build_text_generation_prompt(
+    content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
+    company_research: Optional[CompanyResearch],
+    relevant_projects_text: str,
+    user_context: str,
+    word_limit: Optional[int] = None
+) -> str:
+    """Build prompt for content generation using TEXT from search tool (PydanticAI pattern)."""
+    if content_type == "upwork_proposal":
+        word_count = word_limit if word_limit else "150-300"
+        prompt = f"""Write a compelling Upwork proposal ({word_count} words) for this job:
+
+{user_context}
+
+"""
+        if company_research:
+            prompt += f"""Company Context:
+- {company_research.company_name} is in {company_research.industry}
+- Tech stack: {', '.join(company_research.tech_stack)}
+- {company_research.business_description}
+
+"""
+
+        prompt += f"""Relevant Brainforge Projects:
+
+{relevant_projects_text}
+
+Requirements:
+- Reference at least 2 specific metrics from the project details above
+- Mention company-specific context if available
+- Professional, confident tone
+- Clear call-to-action
+- {word_count} words
+"""
+
+    elif content_type == "outreach_email":
+        word_count = word_limit if word_limit else "100-200"
+        prompt = f"""Write a personalized outreach email ({word_count} words) to {company_research.company_name if company_research else 'the company'}:
+
+Context: {user_context}
+
+"""
+        if company_research:
+            prompt += f"""About {company_research.company_name}:
+- Industry: {company_research.industry}
+- Tech: {', '.join(company_research.tech_stack[:3])}
+- Recent: {company_research.recent_developments[0] if company_research.recent_developments else 'N/A'}
+
+"""
+
+        prompt += f"""Relevant Case Studies:
+
+{relevant_projects_text}
+
+Requirements:
+- Personalized opening referencing their business
+- 1-2 relevant case study examples with metrics
+- Value proposition
+- Soft call-to-action (meeting request)
+- {word_count} words
+"""
+
+    else:
+        prompt = f"""Write an RFP response for:
+
+{user_context}
+
+Relevant Project Examples:
+
+{relevant_projects_text}
+"""
+
+    return prompt
+
+
 def build_generation_prompt(
     content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
     company_research: Optional[CompanyResearch],
     relevant_projects: List[ProjectMatch],
     user_context: str
 ) -> str:
-    """Build prompt for content generation."""
+    """Build prompt for content generation (DEPRECATED - use build_text_generation_prompt)."""
     if content_type == "upwork_proposal":
         prompt = f"""Write a compelling Upwork proposal (150-300 words) for this job:
 
@@ -651,18 +744,20 @@ async def generate_content(
     ctx: RunContext[AgentDeps],
     content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
     company_research_json: str,
-    relevant_projects_json: str,
+    relevant_projects_text: str,
     user_context: str,
     word_limit: Optional[int] = None
 ) -> str:
     """
     Generate proposal or email with company context and project examples.
 
+    **NEW (PydanticAI Pattern):** Accepts FORMATTED TEXT from search tool, not JSON.
+
     Args:
         ctx: Context with LLM client
         content_type: Type of content to generate
-        company_research_json: JSON from research_company tool
-        relevant_projects_json: JSON from search_relevant_projects tool
+        company_research_json: JSON from research_company tool (still JSON for now)
+        relevant_projects_text: FORMATTED TEXT from search_relevant_projects tool
         user_context: User's notes or job posting text
         word_limit: Optional word count constraint
 
@@ -674,109 +769,14 @@ async def generate_content(
         if company_research_json:
             company_research = CompanyResearch.model_validate_json(company_research_json)
 
-        # Clean and convert the agent's malformed JSON
-        import json
-        import re
-
-        # Strip trailing semicolons and whitespace
-        cleaned_json = relevant_projects_json.strip().rstrip(';').strip()
-
-        # Try to parse as JSON with aggressive error recovery
-        try:
-            parsed = json.loads(cleaned_json)
-        except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}")
-            print(f"Input was: {cleaned_json[:200]}...")
-
-            # Try aggressive fixes for common agent errors
-            print("[GENERATE] Attempting JSON repair...")
-
-            # Fix 1: Replace smart quotes with regular quotes
-            cleaned_json = cleaned_json.replace('"', '"').replace('"', '"').replace("'", "'").replace("'", "'")
-
-            # Fix 2: Escape unescaped quotes inside strings (basic attempt)
-            # This is risky but might help
-
-            # Fix 3: Remove trailing commas before closing brackets
-            cleaned_json = re.sub(r',\s*([}\]])', r'\1', cleaned_json)
-
-            # Fix 4: Try to find the error position and truncate
-            try:
-                parsed = json.loads(cleaned_json)
-                print("[GENERATE] JSON repair successful!")
-            except json.JSONDecodeError as e2:
-                # Last resort: try to extract just the first complete object
-                print(f"[GENERATE] JSON repair failed: {e2}")
-
-                # If it's a list, try to find the first valid object
-                if cleaned_json.startswith('['):
-                    # Try to find first complete object by counting braces
-                    brace_count = 0
-                    for i, char in enumerate(cleaned_json):
-                        if char == '{':
-                            brace_count += 1
-                        elif char == '}':
-                            brace_count -= 1
-                            if brace_count == 0 and i > 10:
-                                # Found end of first object
-                                truncated = '[' + cleaned_json[1:i+1] + ']'
-                                try:
-                                    parsed = json.loads(truncated)
-                                    print(f"[GENERATE] Recovered by truncating at char {i}")
-                                    break
-                                except:
-                                    continue
-                    else:
-                        raise ValueError(f"Invalid JSON from agent: {e}, repair failed")
-                else:
-                    raise ValueError(f"Invalid JSON from agent: {e}")
-
-        # If agent passed a list instead of ProjectSearchResults, convert it
-        if isinstance(parsed, list):
-            print(f"[GENERATE] Agent passed list instead of ProjectSearchResults, converting...")
-
-            # Normalize each project dict to match ProjectMatch schema
-            normalized_matches = []
-            for idx, proj in enumerate(parsed):
-                normalized = {
-                    'project_id': proj.get('project_id') or proj.get('file_id') or f"unknown_{idx}",
-                    'project_name': proj.get('project_name') or proj.get('title') or 'Unknown Project',
-                    'project_type': proj.get('project_type') or 'BI_Analytics',
-                    'industry': proj.get('industry') or 'General',
-                    'technologies_used': proj.get('technologies_used') or proj.get('tech_stack') or [],
-                    'key_metric': proj.get('key_metric') or '',
-                    'relevance_score': proj.get('relevance_score') or 0.5,
-                    'summary': proj.get('summary') or proj.get('context') or ''
-                }
-                normalized_matches.append(normalized)
-
-            # Convert list of project dicts to ProjectSearchResults format
-            search_results = ProjectSearchResults(
-                matches=normalized_matches,
-                total_found=len(normalized_matches),
-                search_query="",
-                filters_applied={}
-            )
-        elif isinstance(parsed, dict):
-            # Check if it has the right structure
-            if 'matches' in parsed:
-                search_results = ProjectSearchResults.model_validate(parsed)
-            elif 'projects' in parsed:
-                # Agent used 'projects' instead of 'matches'
-                print(f"[GENERATE] Agent used 'projects' key, converting to 'matches'...")
-                parsed['matches'] = parsed.pop('projects')
-                parsed.setdefault('total_found', len(parsed['matches']))
-                parsed.setdefault('search_query', '')
-                parsed.setdefault('filters_applied', {})
-                search_results = ProjectSearchResults.model_validate(parsed)
-            else:
-                raise ValueError(f"Dict missing 'matches' or 'projects' key: {list(parsed.keys())}")
-        else:
-            raise ValueError(f"Expected list or dict, got {type(parsed)}")
-
-        relevant_projects = search_results.matches
-
-        prompt = build_generation_prompt(content_type, company_research, relevant_projects, user_context)
+        # Build prompt using text-based context
+        prompt = build_text_generation_prompt(
+            content_type,
+            company_research,
+            relevant_projects_text,
+            user_context,
+            word_limit
+        )
 
         from pydantic_ai import Agent
         from agent import get_model

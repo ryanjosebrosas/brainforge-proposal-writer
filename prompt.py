@@ -23,10 +23,10 @@ For EVERY proposal/email request, follow this systematic workflow:
 4. **Generation Phase**:
    - Use generate_content tool with all gathered context:
      - company_research_json = EXACT JSON STRING from research_company tool (or empty string if no company)
-     - relevant_projects_json = EXACT JSON STRING from search_relevant_projects tool (step 3)
+     - relevant_projects_text = EXACT TEXT from search_relevant_projects tool (step 3)
      - user_context = original job posting or outreach notes
      - content_type = "upwork_proposal" or "outreach_email"
-   - CRITICAL: Pass the ACTUAL tool results as-is, do NOT manually construct JSON objects
+   - CRITICAL: Pass the ACTUAL TEXT from search_relevant_projects as-is, do NOT try to parse or modify it!
 
 6. **Quality Phase** (MANDATORY):
    - Use review_and_score tool on generated content
@@ -68,10 +68,10 @@ MINIMUM requirements for all content:
 - Use descriptive queries (e.g., "BI dashboard analytics" not just "dashboard")
 
 **generate_content**:
-- CRITICAL: Pass EXACT JSON strings from search_relevant_projects (do NOT call get_project_details first!)
+- CRITICAL: Pass EXACT TEXT from search_relevant_projects as-is (do NOT try to parse, modify, or reconstruct it!)
 - company_research_json = result from research_company tool (or "" if skipped)
-- relevant_projects_json = result from search_relevant_projects tool (contains all project data)
-- Do NOT manually construct JSON - use actual tool results
+- relevant_projects_text = FORMATTED TEXT from search_relevant_projects tool (contains all project details WITH metrics)
+- Do NOT call get_project_details first - search results already have everything!
 - Ensure user_context contains full job posting or outreach notes
 - Use word_limit if user specifies length constraint
 

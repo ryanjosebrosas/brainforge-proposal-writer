@@ -316,12 +316,15 @@ async def generate_content(
     ctx: RunContext[AgentDeps],
     content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
     company_research_json: str,
-    relevant_projects_json: str,
+    relevant_projects_text: str,
     user_context: str,
     word_limit: Optional[int] = None
 ) -> str:
     """
     Generate personalized proposal or outreach email with specific examples.
+
+    **IMPORTANT:** Pass the EXACT TEXT from search_relevant_projects tool directly.
+    Do NOT try to parse, modify, or reconstruct it as JSON.
 
     Use this after gathering company research and relevant projects to create
     the final content. This combines all context into a compelling narrative.
@@ -333,7 +336,7 @@ async def generate_content(
                      - "outreach_email": 100-200 word cold outreach
                      - "rfp_response": Formal RFP response
         company_research_json: JSON from research_company tool (can be empty string if no company)
-        relevant_projects_json: JSON from search_relevant_projects tool
+        relevant_projects_text: FORMATTED TEXT from search_relevant_projects tool (pass as-is!)
         user_context: The job posting or outreach context from user
         word_limit: Optional word count constraint (overrides defaults)
 
@@ -347,11 +350,11 @@ async def generate_content(
 
     Example workflow:
         1. research_company() → company_json
-        2. search_relevant_projects() → projects_json
-        3. generate_content(ctx, "upwork_proposal", company_json, projects_json, job_posting)
+        2. search_relevant_projects() → projects_text (formatted text)
+        3. generate_content(ctx, "upwork_proposal", company_json, projects_text, job_posting)
     """
     print(f"Calling generate_content tool for content_type: {content_type}")
-    return await generate_content_tool(ctx, content_type, company_research_json, relevant_projects_json, user_context, word_limit)
+    return await generate_content_tool(ctx, content_type, company_research_json, relevant_projects_text, user_context, word_limit)
 
 @agent.tool
 async def review_and_score(
