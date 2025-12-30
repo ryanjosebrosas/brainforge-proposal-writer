@@ -183,9 +183,13 @@ BEGIN
   FROM document_metadata m
   JOIN document_rows r ON r.dataset_id = m.file_id
   WHERE
-    (min_value IS NULL OR (r.row_data->>'value')::INT >= min_value)
+    (min_value IS NULL OR (r.row_data->>'value' ~ '^[0-9]+$' AND (r.row_data->>'value')::INT >= min_value))
     AND (metric_type_filter IS NULL OR r.row_data->>'type' ILIKE '%' || metric_type_filter || '%')
-  ORDER BY (r.row_data->>'value')::INT DESC;
+  ORDER BY
+    CASE WHEN r.row_data->>'value' ~ '^[0-9]+$'
+         THEN (r.row_data->>'value')::INT
+         ELSE 0
+    END DESC;
 END;
 $$;
 
