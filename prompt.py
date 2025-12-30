@@ -68,10 +68,14 @@ MINIMUM requirements for all content:
 **search_relevant_projects**:
 - Run TWO searches for best results:
   1. Search for capability deck: Query "AI capabilities" or "data analytics deck" based on job focus
-  2. Search for case studies: Use tech_filter and industry filter for targeted matches
-- ALWAYS use tech_filter if technologies mentioned in job (improves relevance)
+  2. Search for case studies: Use industry filter, but be CAREFUL with tech_filter
+- tech_filter usage:
+  - ONLY use tech_filter for NICHE technologies (e.g., "Snowflake", "n8n", "Zapier")
+  - DO NOT use tech_filter for COMMON tools (e.g., "Power BI", "Python", "SQL", "React")
+  - Why: We have Tableau dashboards that are just as relevant as Power BI dashboards
+  - Example: Job wants "Power BI" → search "dashboard analytics" WITHOUT tech_filter
 - ALWAYS use industry filter if industry identified
-- Use descriptive queries (e.g., "AI chatbot automation" not just "AI")
+- Use descriptive queries (e.g., "BI dashboard analytics" not just "dashboard")
 
 **get_project_details**:
 - **REQUIRED: Retrieve EXACTLY 1 capability deck + 2 case studies**:
