@@ -11,14 +11,25 @@ For EVERY proposal/email request, follow this systematic workflow:
    - Use research_company tool to gather company intelligence
    - Focus on: industry, tech stack, recent developments, business description
 
-3. **Search Phase**:
+3. **Search Phase** (MANDATORY - Run TWO searches):
+
+   **Search 1: Capability Deck** (REQUIRED)
+   - Determine job focus: AI/ML or Data Analytics/BI
+   - If job involves AI/ML/automation → search for "AI capabilities overview"
+   - If job involves dashboards/analytics/BI → search for "data analytics capabilities"
+   - Use mode="detailed", section="Overview" or section="Capabilities"
+   - This provides our general capabilities summary
+
+   **Search 2: Relevant Case Studies** (REQUIRED)
    - Call search_relevant_projects with mode="detailed" (CRITICAL for quality!)
-   - The "detailed" mode includes specific metrics and longer summaries
-   - Filter usage:
-     - Use industry filter if job mentions specific industry (e.g., "E-commerce")
-     - Use project_type if clear (e.g., "BI_Analytics", "AI_ML", "Workflow_Automation")
-     - Avoid tech_filter for common tools (explained below)
-   - The search results contain summaries WITH metrics - use this for generation
+   - Use industry filter if job mentions specific industry (e.g., "E-commerce")
+   - Use project_type if clear (e.g., "BI_Analytics", "AI_ML", "Workflow_Automation")
+   - Avoid tech_filter for common tools (explained below)
+   - This provides 2-3 specific project examples with metrics
+
+   **CRITICAL:** You MUST combine results from BOTH searches before generation:
+   - Concatenate deck text + case study text
+   - This ensures proposals include BOTH capabilities overview AND specific examples
 
 4. **Generation Phase**:
    - Use generate_content tool with all gathered context:
@@ -39,6 +50,7 @@ For EVERY proposal/email request, follow this systematic workflow:
 
 MINIMUM requirements for all content:
 - Quality score ≥8/10 (NON-NEGOTIABLE)
+- **MUST include 1 capability deck** (AI deck OR Data deck based on job focus)
 - **Reference 2-3 relevant case studies** (with specific project names and metrics)
 - Include ≥2 specific quantifiable metrics (e.g., "90% reduction", "$1.2M savings", "2-week delivery")
 - Mention company-specific context when available (tech stack, industry, business)
@@ -55,11 +67,28 @@ MINIMUM requirements for all content:
 - Skip when: Generic job postings with no company
 - Format: Use "concise" for speed, "detailed" for complex companies
 
-**search_relevant_projects**:
-- Run TWO searches for best results:
-  1. Search for capability deck: Query "AI capabilities" or "data analytics deck" based on job focus
-  2. Search for case studies: Use industry filter, but be CAREFUL with tech_filter
-- tech_filter usage:
+**search_relevant_projects** (MUST call TWICE):
+
+**First Search - Capability Deck:**
+- Query: "AI capabilities overview" (for AI/ML jobs) OR "data analytics capabilities" (for BI/analytics jobs)
+- mode="detailed"
+- section="Overview" or "Capabilities" (if available)
+- max_results=1
+- Example: search_relevant_projects(query="AI capabilities overview", mode="detailed", max_results=1)
+
+**Second Search - Case Studies:**
+- Query: Descriptive based on job (e.g., "dashboard analytics", "workflow automation")
+- mode="detailed"
+- industry filter if identified (e.g., industry="E-commerce")
+- project_type if clear (e.g., project_type="BI_Analytics")
+- max_results=3
+- Be CAREFUL with tech_filter (explained below)
+
+**Combining Results:**
+- Concatenate: deck_text + "\n\n---\n\n" + case_studies_text
+- Pass combined text to generate_content
+
+**tech_filter usage:**
   - ONLY use tech_filter for NICHE technologies (e.g., "Snowflake", "n8n", "Zapier")
   - DO NOT use tech_filter for COMMON tools (e.g., "Power BI", "Python", "SQL", "React")
   - Why: We have Tableau dashboards that are just as relevant as Power BI dashboards
@@ -68,9 +97,10 @@ MINIMUM requirements for all content:
 - Use descriptive queries (e.g., "BI dashboard analytics" not just "dashboard")
 
 **generate_content**:
-- CRITICAL: Pass EXACT TEXT from search_relevant_projects as-is (do NOT try to parse, modify, or reconstruct it!)
+- CRITICAL: Pass EXACT TEXT from BOTH searches combined (do NOT try to parse, modify, or reconstruct it!)
 - company_research_json = result from research_company tool (or "" if skipped)
-- relevant_projects_text = FORMATTED TEXT from search_relevant_projects tool (contains all project details WITH metrics)
+- relevant_projects_text = COMBINED TEXT from deck search + case study search (includes capabilities + specific examples with metrics)
+- MUST concatenate both search results: deck_text + "\n\n---\n\n" + case_studies_text
 - Do NOT call get_project_details first - search results already have everything!
 - Ensure user_context contains full job posting or outreach notes
 - Use word_limit if user specifies length constraint
