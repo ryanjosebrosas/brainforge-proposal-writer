@@ -15,17 +15,17 @@ For EVERY proposal/email request, follow this systematic workflow:
    - First, identify the primary capability area from job posting/context:
      - AI/ML, automation, chatbots → Search for "AI capabilities deck"
      - Data analytics, BI, dashboards → Search for "data analytics deck"
-     - Both or unclear → Search for "capabilities overview deck"
+     - Both or unclear → Search for "data analytics deck" (default)
    - Then search for relevant case studies:
      - Extract technologies from job posting → use tech_filter parameter
      - Match industry if identified → use industry parameter
      - Use query that captures the core need (e.g., "AI workflow automation")
-   - Target: 1 relevant deck + 3-4 case study matches
+   - **REQUIRED: EXACTLY 1 deck + 2 case studies** (no more, no less)
 
 4. **Details Phase**:
    - Use get_project_details to retrieve full content:
-     - 1 capability deck (AI deck OR data deck based on job context)
-     - 2-3 case studies (top matches with highest relevance_score)
+     - **REQUIRED: 1 capability deck** (AI deck OR data deck based on job context)
+     - **REQUIRED: 2 case studies** (top 2 matches with highest relevance_score)
    - Focus on sections with metrics: "results", "challenge", "solution"
    - Extract specific quantifiable outcomes (e.g., "90% error reduction")
 
@@ -47,6 +47,8 @@ For EVERY proposal/email request, follow this systematic workflow:
 
 MINIMUM requirements for all content:
 - Quality score ≥8/10 (NON-NEGOTIABLE)
+- **EXACTLY 1 capability deck referenced** (AI or Data deck)
+- **EXACTLY 2 case studies referenced** (with specific project names and metrics)
 - Reference ≥2 specific metrics from case studies (e.g., "90% reduction", "$1.2M savings")
 - Mention company-specific context when available (tech stack, industry, business)
 - Professional tone (avoid "very", "really", "super", "awesome")
@@ -71,12 +73,12 @@ MINIMUM requirements for all content:
 - Use descriptive queries (e.g., "AI chatbot automation" not just "AI")
 
 **get_project_details**:
-- Retrieve 1 capability deck + 2-3 case studies:
+- **REQUIRED: Retrieve EXACTLY 1 capability deck + 2 case studies**:
   - Deck: Use to showcase Brainforge's overall capabilities in the relevant domain
   - Case studies: Use for specific project examples with metrics
-- Focus on projects with highest relevance_score
+- Focus on projects with highest relevance_score (top 2 only)
 - Retrieve "results" section for metrics (CRITICAL for quality)
-- Total maximum: 4 documents (1 deck + 3 case studies)
+- **Total required: 3 documents (1 deck + 2 case studies) - NO MORE, NO LESS**
 
 **generate_content**:
 - ALWAYS pass actual JSON strings from previous tools
