@@ -681,13 +681,55 @@ async def generate_content(
         # Strip trailing semicolons and whitespace
         cleaned_json = relevant_projects_json.strip().rstrip(';').strip()
 
-        # Try to parse as JSON
+        # Try to parse as JSON with aggressive error recovery
         try:
             parsed = json.loads(cleaned_json)
         except json.JSONDecodeError as e:
             print(f"JSON parse error: {e}")
             print(f"Input was: {cleaned_json[:200]}...")
-            raise ValueError(f"Invalid JSON from agent: {e}")
+
+            # Try aggressive fixes for common agent errors
+            print("[GENERATE] Attempting JSON repair...")
+
+            # Fix 1: Replace smart quotes with regular quotes
+            cleaned_json = cleaned_json.replace('"', '"').replace('"', '"').replace("'", "'").replace("'", "'")
+
+            # Fix 2: Escape unescaped quotes inside strings (basic attempt)
+            # This is risky but might help
+
+            # Fix 3: Remove trailing commas before closing brackets
+            cleaned_json = re.sub(r',\s*([}\]])', r'\1', cleaned_json)
+
+            # Fix 4: Try to find the error position and truncate
+            try:
+                parsed = json.loads(cleaned_json)
+                print("[GENERATE] JSON repair successful!")
+            except json.JSONDecodeError as e2:
+                # Last resort: try to extract just the first complete object
+                print(f"[GENERATE] JSON repair failed: {e2}")
+
+                # If it's a list, try to find the first valid object
+                if cleaned_json.startswith('['):
+                    # Try to find first complete object by counting braces
+                    brace_count = 0
+                    for i, char in enumerate(cleaned_json):
+                        if char == '{':
+                            brace_count += 1
+                        elif char == '}':
+                            brace_count -= 1
+                            if brace_count == 0 and i > 10:
+                                # Found end of first object
+                                truncated = '[' + cleaned_json[1:i+1] + ']'
+                                try:
+                                    parsed = json.loads(truncated)
+                                    print(f"[GENERATE] Recovered by truncating at char {i}")
+                                    break
+                                except:
+                                    continue
+                    else:
+                        raise ValueError(f"Invalid JSON from agent: {e}, repair failed")
+                else:
+                    raise ValueError(f"Invalid JSON from agent: {e}")
 
         # If agent passed a list instead of ProjectSearchResults, convert it
         if isinstance(parsed, list):
