@@ -310,7 +310,7 @@ def main():
 
     # Footer
     st.divider()
-    st.caption("🤖 Powered by Brainforge AI | Built with PydanticAI & Claude")
+    st.caption("🤖 Powered by Brainforge | Built by Ryan Brosas")
 
 
 if __name__ == "__main__":

@@ -2,11 +2,14 @@ import os
 import io
 import csv
 import tempfile
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple, Optional
 import pypdf
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
+
+from .metadata_parser import parse_case_study
+from .schemas import CaseStudyFrontmatter
 
 # Load environment variables from the project root .env file
 # Get the path to the project root (4_Pydantic_AI_Agent directory)
@@ -179,10 +182,10 @@ def extract_schema_from_csv(file_content: bytes) -> List[str]:
 def extract_rows_from_csv(file_content: bytes) -> List[Dict[str, Any]]:
     """
     Extract rows from a CSV file as a list of dictionaries.
-    
+
     Args:
         file_content: The binary content of the CSV file
-        
+
     Returns:
         List[Dict[str, Any]]: List of row data as dictionaries
     """
@@ -193,4 +196,43 @@ def extract_rows_from_csv(file_content: bytes) -> List[Dict[str, Any]]:
         return list(csv_reader)
     except Exception as e:
         print(f"Error extracting rows from CSV: {e}")
-        return []    
+        return []
+
+
+def extract_text_and_metadata(
+    file_content: bytes,
+    mime_type: str,
+    file_name: str,
+    config: Dict[str, Any] = None
+) -> Tuple[str, Optional[CaseStudyFrontmatter]]:
+    """
+    Extract text content and metadata from a file.
+
+    For markdown files, extracts YAML frontmatter. For other file types,
+    just extracts text without metadata.
+
+    Args:
+        file_content: Binary content of the file
+        mime_type: MIME type of the file
+        file_name: Name of file for logging
+        config: Configuration dictionary
+
+    Returns:
+        Tuple of (extracted_text, case_study_metadata)
+        - For markdown with frontmatter: (body_text, CaseStudyFrontmatter)
+        - For other files: (full_text, None)
+    """
+    # Check if this is a markdown file
+    is_markdown = (
+        'text/markdown' in mime_type or
+        mime_type.startswith('text/') and file_name.endswith('.md')
+    )
+
+    if is_markdown:
+        # Parse case study with frontmatter extraction
+        frontmatter, body_text = parse_case_study(file_content, file_name)
+        return body_text, frontmatter
+    else:
+        # For non-markdown, use existing text extraction
+        text = extract_text_from_file(file_content, mime_type, file_name, config)
+        return text, None
