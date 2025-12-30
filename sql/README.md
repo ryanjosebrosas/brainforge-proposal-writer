@@ -7,6 +7,27 @@ This directory contains SQL schemas for setting up the Brainforge Proposal Write
 ### `schema.sql`
 **Complete database setup** - Run this first to set up the entire database structure.
 
+### `reset.sql` (⚠️ DELETES PROJECT DATA)
+**Targeted reset script** - Removes only Brainforge Proposal Writer tables:
+- Drops `documents` table and related tables
+- Drops `match_documents()` function
+- Keeps other Supabase tables intact
+- Use this for normal resets
+
+### `reset_full.sql` (⚠️⚠️⚠️ NUCLEAR OPTION)
+**Complete database wipe** - Removes EVERYTHING in public schema:
+- Drops ALL tables (not just ours)
+- Drops ALL functions
+- Drops ALL views, sequences, types
+- Gives you a completely clean slate
+- Use this only when you want to start from absolute zero
+
+### `test_queries.sql`
+**60+ verification queries** - Test and debug your database setup.
+
+### `QUICK_START.md`
+**Step-by-step setup guide** - Complete workflow from zero to working proposal writer in 15 minutes.
+
 **What it creates:**
 - `documents` table - Stores case study chunks with vector embeddings
 - `match_documents()` RPC function - Semantic search function
