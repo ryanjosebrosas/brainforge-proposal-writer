@@ -1,14 +1,12 @@
-from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.mcp import MCPServerHTTP
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from httpx import AsyncClient
 from supabase import Client
 from pathlib import Path
-from typing import List
+from typing import List, Literal, Optional
 import os
 
 from prompt import AGENT_SYSTEM_PROMPT
@@ -20,7 +18,14 @@ from tools import (
     get_document_content_tool,
     execute_sql_query_tool,
     execute_safe_code_tool
-) 
+)
+from proposal_tools import (
+    research_company as research_company_tool,
+    search_relevant_projects as search_relevant_projects_tool,
+    get_project_details as get_project_details_tool,
+    generate_content as generate_content_tool,
+    review_and_score as review_and_score_tool
+)
 
 # Load environment variables from what we have set for our agent
 project_root = Path(__file__).resolve().parent
@@ -33,7 +38,7 @@ def get_model():
     base_url = os.getenv('LLM_BASE_URL') or 'https://api.openai.com/v1'
     api_key = os.getenv('LLM_API_KEY') or 'ollama'
 
-    return OpenAIModel(llm, provider=OpenAIProvider(base_url=base_url, api_key=api_key))
+    return OpenAIModel(llm, base_url=base_url, api_key=api_key)
 
 # ========== Pydantic AI Agent ==========
 @dataclass
@@ -184,13 +189,196 @@ async def execute_code(ctx: RunContext[AgentDeps], code: str) -> str:
     """
     Executes a given Python code string in a protected environment.
     Use print to output anything that you need as a result of executing the code.
-    
+
     Args:
         code: Python code to execute
-        
+
     Returns:
         str: Anything printed out to standard output with the print command
-    """    
+    """
     print(f"executing code: {code}")
     print(f"Result is: {execute_safe_code_tool(code)}")
     return execute_safe_code_tool(code)
+
+# ========== Proposal Writer Tools ==========
+
+@agent.tool
+async def research_company(
+    ctx: RunContext[AgentDeps],
+    company_name: str,
+    response_format: Literal["concise", "detailed"] = "concise"
+) -> str:
+    """
+    Research target company using Brave Search API to gather intelligence.
+
+    Use this when you have a company name to research their industry, tech stack,
+    recent news, and business context. This provides personalization for proposals.
+
+    Args:
+        ctx: Context with HTTP client and Brave API key
+        company_name: Name of the company to research (e.g., "Acme Corp")
+        response_format: "concise" (top 3 sources, faster) or "detailed" (top 10 sources, comprehensive)
+
+    Returns:
+        JSON string with CompanyResearch schema containing:
+        - company_name, industry, business_description
+        - size_estimate (startup/SMB/enterprise)
+        - tech_stack, recent_developments, pain_points
+        - sources (URLs)
+
+    Example:
+        Use when job posting mentions a company: "Looking for help with our Shopify store at Acme Corp"
+    """
+    print(f"Calling research_company tool for: {company_name}")
+    return await research_company_tool(ctx, company_name, response_format)
+
+@agent.tool
+async def search_relevant_projects(
+    ctx: RunContext[AgentDeps],
+    query: str,
+    tech_filter: Optional[List[str]] = None,
+    industry: Optional[str] = None,
+    project_type: Optional[str] = None,
+    max_results: int = 5,
+    mode: Literal["concise", "detailed"] = "concise"
+) -> str:
+    """
+    Search Brainforge's case studies with advanced metadata filters.
+
+    Use this to find relevant past projects that match the job requirements.
+    Filter by technologies, industry, or project type for better matches.
+
+    Args:
+        ctx: Context with Supabase and embedding clients
+        query: Search query describing what you're looking for (e.g., "AI workflow automation")
+        tech_filter: List of technologies to filter by (e.g., ["Python", "React"])
+        industry: Filter by industry (e.g., "E-commerce", "Healthcare")
+        project_type: Filter by type (e.g., "AI_ML", "BI_Analytics", "Workflow_Automation")
+        max_results: Maximum number of projects to return (default 5)
+        mode: "concise" (just metadata) or "detailed" (includes summary)
+
+    Returns:
+        JSON string with ProjectSearchResults schema containing:
+        - matches: List of ProjectMatch objects with relevance scores
+        - total_found: Total matches before truncation
+        - search_query, filters_applied
+
+    Example:
+        search_relevant_projects(ctx, "e-commerce analytics dashboard", tech_filter=["Tableau", "Python"])
+    """
+    print(f"Calling search_relevant_projects tool with query: {query}")
+    return await search_relevant_projects_tool(ctx, query, tech_filter, industry, project_type, max_results, mode)
+
+@agent.tool
+async def get_project_details(
+    ctx: RunContext[AgentDeps],
+    project_id: str,
+    sections: List[str] = ["context", "challenge", "solution", "results"]
+) -> str:
+    """
+    Retrieve full case study content for a specific project.
+
+    Use this after search_relevant_projects to get detailed information about
+    the top matching projects. This provides the specific metrics and context
+    needed for personalized proposals.
+
+    Args:
+        ctx: Context with Supabase client
+        project_id: The file_id from search_relevant_projects results
+        sections: Which sections to retrieve (default: all main sections)
+                 Options: "context", "challenge", "solution", "results", "testimonial"
+
+    Returns:
+        JSON string with ProjectDetails schema containing:
+        - project_name, client_name
+        - context, challenge, solution (optional based on sections param)
+        - results (metrics dict + outcomes list)
+        - testimonial, tools_used, team
+
+    Example:
+        After getting project_id "abc-home-001" from search, call:
+        get_project_details(ctx, "abc-home-001")
+    """
+    print(f"Calling get_project_details tool for project: {project_id}")
+    return await get_project_details_tool(ctx, project_id, sections)
+
+@agent.tool
+async def generate_content(
+    ctx: RunContext[AgentDeps],
+    content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
+    company_research_json: str,
+    relevant_projects_json: str,
+    user_context: str,
+    word_limit: Optional[int] = None
+) -> str:
+    """
+    Generate personalized proposal or outreach email with specific examples.
+
+    Use this after gathering company research and relevant projects to create
+    the final content. This combines all context into a compelling narrative.
+
+    Args:
+        ctx: Context with LLM client
+        content_type: Type of content to generate:
+                     - "upwork_proposal": 150-300 word proposal for job posting
+                     - "outreach_email": 100-200 word cold outreach
+                     - "rfp_response": Formal RFP response
+        company_research_json: JSON from research_company tool (can be empty string if no company)
+        relevant_projects_json: JSON from search_relevant_projects tool
+        user_context: The job posting or outreach context from user
+        word_limit: Optional word count constraint (overrides defaults)
+
+    Returns:
+        JSON string with GeneratedContent schema containing:
+        - content: The generated text
+        - structure: Breakdown of sections
+        - word_count, projects_referenced
+        - personalization_score (0.0-1.0)
+        - token_estimate
+
+    Example workflow:
+        1. research_company() → company_json
+        2. search_relevant_projects() → projects_json
+        3. generate_content(ctx, "upwork_proposal", company_json, projects_json, job_posting)
+    """
+    print(f"Calling generate_content tool for content_type: {content_type}")
+    return await generate_content_tool(ctx, content_type, company_research_json, relevant_projects_json, user_context, word_limit)
+
+@agent.tool
+async def review_and_score(
+    ctx: RunContext[AgentDeps],
+    content: str,
+    content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"]
+) -> str:
+    """
+    Quality assurance check with actionable feedback and scoring.
+
+    ALWAYS use this after generate_content to ensure quality standards.
+    If score <8/10, you MUST iterate and regenerate with improvements.
+
+    Args:
+        ctx: Context with LLM client
+        content: The generated content to review (from generate_content)
+        content_type: Type of content being reviewed
+
+    Returns:
+        JSON string with ContentReview schema containing:
+        - quality_score: 1.0-10.0 (must be ≥8.0 to pass)
+        - passed_checks, failed_checks: Lists of criteria met/not met
+        - specific_issues: List of Issue objects with severity
+        - suggestions: List of improvement recommendations
+        - revised_content: Auto-revised version if score <8
+
+    Quality criteria checked:
+        - has_specific_metrics (40% weight)
+        - has_project_reference (30% weight)
+        - proper_length (10% weight)
+        - has_call_to_action (10% weight)
+        - professional_tone (10% weight)
+
+    Example:
+        review_and_score(ctx, generated_proposal, "upwork_proposal")
+        If quality_score < 8.0, use suggestions to regenerate
+    """
+    print(f"Calling review_and_score tool for content_type: {content_type}")
+    return await review_and_score_tool(ctx, content, content_type)
