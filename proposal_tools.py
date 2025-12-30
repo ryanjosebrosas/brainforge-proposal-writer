@@ -564,7 +564,48 @@ async def generate_content(
         if company_research_json:
             company_research = CompanyResearch.model_validate_json(company_research_json)
 
-        search_results = ProjectSearchResults.model_validate_json(relevant_projects_json)
+        # Clean and convert the agent's malformed JSON
+        import json
+        import re
+
+        # Strip trailing semicolons and whitespace
+        cleaned_json = relevant_projects_json.strip().rstrip(';').strip()
+
+        # Try to parse as JSON
+        try:
+            parsed = json.loads(cleaned_json)
+        except json.JSONDecodeError as e:
+            print(f"JSON parse error: {e}")
+            print(f"Input was: {cleaned_json[:200]}...")
+            raise ValueError(f"Invalid JSON from agent: {e}")
+
+        # If agent passed a list instead of ProjectSearchResults, convert it
+        if isinstance(parsed, list):
+            print(f"[GENERATE] Agent passed list instead of ProjectSearchResults, converting...")
+            # Convert list of project dicts to ProjectSearchResults format
+            search_results = ProjectSearchResults(
+                matches=parsed,  # Pydantic will validate each item
+                total_found=len(parsed),
+                search_query="",
+                filters_applied={}
+            )
+        elif isinstance(parsed, dict):
+            # Check if it has the right structure
+            if 'matches' in parsed:
+                search_results = ProjectSearchResults.model_validate(parsed)
+            elif 'projects' in parsed:
+                # Agent used 'projects' instead of 'matches'
+                print(f"[GENERATE] Agent used 'projects' key, converting to 'matches'...")
+                parsed['matches'] = parsed.pop('projects')
+                parsed.setdefault('total_found', len(parsed['matches']))
+                parsed.setdefault('search_query', '')
+                parsed.setdefault('filters_applied', {})
+                search_results = ProjectSearchResults.model_validate(parsed)
+            else:
+                raise ValueError(f"Dict missing 'matches' or 'projects' key: {list(parsed.keys())}")
+        else:
+            raise ValueError(f"Expected list or dict, got {type(parsed)}")
+
         relevant_projects = search_results.matches
 
         prompt = build_generation_prompt(content_type, company_research, relevant_projects, user_context)
