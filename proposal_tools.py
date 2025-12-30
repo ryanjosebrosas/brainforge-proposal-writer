@@ -582,10 +582,26 @@ async def generate_content(
         # If agent passed a list instead of ProjectSearchResults, convert it
         if isinstance(parsed, list):
             print(f"[GENERATE] Agent passed list instead of ProjectSearchResults, converting...")
+
+            # Normalize each project dict to match ProjectMatch schema
+            normalized_matches = []
+            for idx, proj in enumerate(parsed):
+                normalized = {
+                    'project_id': proj.get('project_id') or proj.get('file_id') or f"unknown_{idx}",
+                    'project_name': proj.get('project_name') or proj.get('title') or 'Unknown Project',
+                    'project_type': proj.get('project_type') or 'BI_Analytics',
+                    'industry': proj.get('industry') or 'General',
+                    'technologies_used': proj.get('technologies_used') or proj.get('tech_stack') or [],
+                    'key_metric': proj.get('key_metric') or '',
+                    'relevance_score': proj.get('relevance_score') or 0.5,
+                    'summary': proj.get('summary') or proj.get('context') or ''
+                }
+                normalized_matches.append(normalized)
+
             # Convert list of project dicts to ProjectSearchResults format
             search_results = ProjectSearchResults(
-                matches=parsed,  # Pydantic will validate each item
-                total_found=len(parsed),
+                matches=normalized_matches,
+                total_found=len(normalized_matches),
                 search_query="",
                 filters_applied={}
             )
