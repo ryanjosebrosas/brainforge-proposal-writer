@@ -171,6 +171,71 @@ async def research_company(
 
 # ========== Tool 2: Search Relevant Projects ==========
 
+def build_enriched_project_match(search_doc: dict, full_study: dict) -> ProjectMatch:
+    """
+    Build enriched ProjectMatch using FULL case study data from get_case_study_full RPC.
+
+    Args:
+        search_doc: Original search result (for relevance score)
+        full_study: Full case study data from get_case_study_full()
+
+    Returns:
+        ProjectMatch with complete context and all metrics
+    """
+    frontmatter = full_study.get('frontmatter', {}) or {}
+    chunks = full_study.get('chunks', []) or []
+    metrics = full_study.get('metrics', []) or []
+
+    # Extract ALL metrics from chunks and metrics table
+    all_metrics = []
+
+    # Get metrics from document_rows table
+    if metrics:
+        for metric in metrics:
+            if isinstance(metric, dict):
+                value = metric.get('value', '')
+                unit = metric.get('unit', '')
+                metric_str = f"{value}{unit}" if unit else str(value)
+                all_metrics.append(metric_str)
+
+    # Get metrics from content text (Results section)
+    results_chunks = [c for c in chunks if c.get('section', '').lower() == 'results']
+    for chunk in results_chunks:
+        content = chunk.get('content', '')
+        found = re.findall(
+            r'(\d+(?:\.\d+)?%?\s*(?:reduction|improvement|increase|faster|savings?|saved|\$\d+[KM]?|weeks?|months?|x\s*faster))',
+            content,
+            re.IGNORECASE
+        )
+        all_metrics.extend(found[:3])
+
+    # Build rich summary with ALL sections
+    summary_parts = []
+    for section_name in ['challenge', 'solution', 'results']:
+        section_chunks = [c for c in chunks if c.get('section', '').lower() == section_name]
+        if section_chunks:
+            section_text = " ".join([c.get('content', '')[:200] for c in section_chunks[:2]])
+            summary_parts.append(f"**{section_name.title()}**: {section_text}")
+
+    rich_summary = "\n".join(summary_parts)
+
+    # Add metrics at the top
+    if all_metrics:
+        metrics_str = ", ".join(list(dict.fromkeys(all_metrics))[:5])  # Unique, top 5
+        rich_summary = f"**Key Metrics**: {metrics_str}\n\n{rich_summary}"
+
+    return ProjectMatch(
+        project_id=full_study.get('file_id', 'unknown'),
+        project_name=frontmatter.get('title', full_study.get('file_name', 'Unknown Project')),
+        project_type=frontmatter.get('project_type', 'Unknown'),
+        industry=frontmatter.get('industry', 'Unknown'),
+        technologies_used=frontmatter.get('tech_stack', []),
+        key_metric=all_metrics[0] if all_metrics else "",
+        relevance_score=search_doc.get('combined_score', 0.5),
+        summary=rich_summary
+    )
+
+
 def format_project_match(doc: dict, mode: Literal["concise", "detailed"] = "concise") -> ProjectMatch:
     """
     Format hybrid search result as ProjectMatch model.
@@ -292,8 +357,37 @@ async def search_relevant_projects(
                 filters_applied={}
             ).model_dump_json()
 
-        # Format results
-        matches = [format_project_match(doc, mode) for doc in result.data]
+        # Format results - but in detailed mode, get FULL case study details
+        matches = []
+        if mode == "detailed":
+            # Get full case study for top matches (includes all sections + metrics)
+            print(f"[SEARCH] Fetching full details for top {min(3, len(result.data))} matches...")
+            for doc in result.data[:3]:  # Top 3 only
+                file_id = doc.get('chunk_metadata', {}).get('file_id')
+                if file_id:
+                    try:
+                        # Call get_case_study_full RPC
+                        full_study = ctx.deps.supabase.rpc(
+                            'get_case_study_full',
+                            {'case_study_file_id': file_id}
+                        ).execute()
+
+                        if full_study.data and len(full_study.data) > 0:
+                            study_data = full_study.data[0]
+                            # Build enriched ProjectMatch with full context
+                            enriched_match = build_enriched_project_match(doc, study_data)
+                            matches.append(enriched_match)
+                        else:
+                            # Fallback to basic format if RPC fails
+                            matches.append(format_project_match(doc, mode))
+                    except Exception as e:
+                        print(f"[SEARCH] Error fetching full study for {file_id}: {e}")
+                        matches.append(format_project_match(doc, mode))
+                else:
+                    matches.append(format_project_match(doc, mode))
+        else:
+            # Concise mode: just basic formatting
+            matches = [format_project_match(doc, mode) for doc in result.data]
 
         # Build filters_applied dict
         filters_applied = {}
