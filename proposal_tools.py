@@ -193,13 +193,29 @@ def format_project_match(doc: dict, mode: Literal["concise", "detailed"] = "conc
 
     # Extract key metric from content or frontmatter
     content = doc.get('content', '')
-    metrics_match = re.search(r'(\d+%?\s*(?:reduction|improvement|increase|faster|savings|saved))', content, re.IGNORECASE)
-    if metrics_match:
-        project_match.key_metric = metrics_match.group(1)
 
     if mode == "detailed" and content:
+        # In detailed mode, extract ALL metrics and include in summary
+        metrics_found = re.findall(
+            r'(\d+(?:\.\d+)?%?\s*(?:reduction|improvement|increase|faster|savings?|saved|\$\d+[KM]?|weeks?|months?|days?|hours?|x faster))',
+            content,
+            re.IGNORECASE
+        )
+
         section = chunk_metadata.get('section', '')
-        project_match.summary = f"[{section}] {content[:180]}..."
+
+        # Build rich summary with metrics
+        if metrics_found:
+            metrics_str = ", ".join(metrics_found[:3])  # Top 3 metrics
+            project_match.key_metric = metrics_found[0]  # Primary metric
+            project_match.summary = f"[{section}] Metrics: {metrics_str}. {content[:300]}..."
+        else:
+            project_match.summary = f"[{section}] {content[:400]}..."
+    else:
+        # Concise mode: just extract first metric
+        metrics_match = re.search(r'(\d+%?\s*(?:reduction|improvement|increase|faster|savings|saved))', content, re.IGNORECASE)
+        if metrics_match:
+            project_match.key_metric = metrics_match.group(1)
 
     return project_match
 

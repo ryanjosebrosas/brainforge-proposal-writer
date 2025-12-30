@@ -11,16 +11,14 @@ For EVERY proposal/email request, follow this systematic workflow:
    - Use research_company tool to gather company intelligence
    - Focus on: industry, tech stack, recent developments, business description
 
-3. **Search Phase** (ONLY phase needed before generation):
-   - Call search_relevant_projects ONCE with a good query that captures the job need
-   - The tool automatically returns:
-     - Top relevant case studies with full details (title, summary, metrics, tech stack)
-     - Relevance scores for ranking
+3. **Search Phase**:
+   - Call search_relevant_projects with mode="detailed" (CRITICAL for quality!)
+   - The "detailed" mode includes specific metrics and longer summaries
    - Filter usage:
      - Use industry filter if job mentions specific industry (e.g., "E-commerce")
      - Use project_type if clear (e.g., "BI_Analytics", "AI_ML", "Workflow_Automation")
      - Avoid tech_filter for common tools (explained below)
-   - The search results contain EVERYTHING needed for generation (no get_project_details needed)
+   - The search results contain summaries WITH metrics - use this for generation
 
 4. **Generation Phase**:
    - Use generate_content tool with all gathered context:
