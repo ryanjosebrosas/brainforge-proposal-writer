@@ -107,31 +107,43 @@ def sample_brave_response():
 
 @pytest.fixture
 def sample_project_data():
-    """Sample project data from Supabase."""
+    """Sample project data from Supabase (NEW hybrid search schema)."""
     return [
         {
             "content": "Implemented BI dashboard with 90% error reduction",
-            "metadata": {
+            "chunk_metadata": {
                 "file_id": "project-001",
                 "file_title": "ABC Home Analytics Dashboard",
+                "section": "Results"
+            },
+            "frontmatter": {
+                "title": "ABC Home Analytics Dashboard",
                 "client": "ABC Home",
                 "industry": "E-commerce",
                 "project_type": "BI_Analytics",
                 "tech_stack": ["Snowflake", "dbt", "Tableau"]
             },
-            "similarity": 0.92
+            "combined_score": 0.92,
+            "vector_score": 0.90,
+            "fts_score": 0.95
         },
         {
             "content": "Built automated reporting system saving $1.2M annually",
-            "metadata": {
+            "chunk_metadata": {
                 "file_id": "project-002",
                 "file_title": "Amazon Reporting Automation",
+                "section": "Results"
+            },
+            "frontmatter": {
+                "title": "Amazon Reporting Automation",
                 "client": "Amazon",
                 "industry": "E-commerce",
                 "project_type": "Workflow_Automation",
                 "tech_stack": ["Python", "AWS", "PostgreSQL"]
             },
-            "similarity": 0.85
+            "combined_score": 0.85,
+            "vector_score": 0.80,
+            "fts_score": 0.90
         }
     ]
 
@@ -287,8 +299,10 @@ class TestSearchRelevantProjects:
         mock_embedding_response.data = [MagicMock(embedding=[0.1] * 1536)]
         mock_context.deps.embedding_client.embeddings.create.return_value = mock_embedding_response
 
+        # Mock RPC should only return projects matching the tech filter
+        # Only project-001 has Snowflake and Tableau
         mock_rpc_result = MagicMock()
-        mock_rpc_result.data = sample_project_data
+        mock_rpc_result.data = [sample_project_data[0]]  # Only first project matches filter
         mock_context.deps.supabase.rpc.return_value.execute.return_value = mock_rpc_result
 
         result_json = await search_relevant_projects(
@@ -357,31 +371,30 @@ How we solved it
 
     @pytest.mark.asyncio
     async def test_get_project_details_success(self, mock_context):
-        """Test successful project details retrieval."""
+        """Test successful project details retrieval (NEW normalized schema)."""
         mock_result = MagicMock()
         mock_result.data = [
             {
-                "id": 1,
-                "content": """## Context
-Background information
-
-## Challenge
-The problem
-
-## Solution
-Our approach
-
-## Results
-We achieved 90% error reduction and saved $500K""",
-                "metadata": {
-                    "file_id": "project-001",
-                    "file_title": "ABC Home Analytics Dashboard",
+                "frontmatter": {
+                    "title": "ABC Home Analytics Dashboard",
                     "client": "ABC Home",
-                    "tech_stack": ["Snowflake", "dbt"]
-                }
+                    "industry": "E-commerce",
+                    "project_type": "BI_Analytics",
+                    "tech_stack": ["Snowflake", "dbt", "Tableau"]
+                },
+                "chunks": [
+                    {
+                        "content": "We achieved 90% error reduction and saved $500K annually",
+                        "section": "Results"
+                    }
+                ],
+                "metrics": [
+                    {"metric_name": "error_reduction", "value": 90}
+                ]
             }
         ]
-        mock_context.deps.supabase.from_.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value = mock_result
+        # Mock RPC call for get_case_study_full
+        mock_context.deps.supabase.rpc.return_value.execute.return_value = mock_result
 
         result_json = await get_project_details(
             mock_context,
@@ -400,7 +413,8 @@ We achieved 90% error reduction and saved $500K""",
         """Test project not found."""
         mock_result = MagicMock()
         mock_result.data = []
-        mock_context.deps.supabase.from_.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value = mock_result
+        # Mock RPC call for get_case_study_full (no data found)
+        mock_context.deps.supabase.rpc.return_value.execute.return_value = mock_result
 
         result_json = await get_project_details(mock_context, "nonexistent")
         result = ProjectDetails.model_validate_json(result_json)

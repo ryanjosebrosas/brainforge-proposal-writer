@@ -79,6 +79,15 @@ streamlit run streamlit_ui.py
 
 Visit `http://localhost:8501` in your browser.
 
+### 🌐 Deploy to Replit (Alternative to Local Setup)
+
+For cloud deployment on Replit:
+1. Import this repository to Replit
+2. Add secrets (API keys) via Replit Secrets tab
+3. Click Run - Streamlit app launches automatically
+
+**See [REPLIT_DEPLOYMENT.md](REPLIT_DEPLOYMENT.md) for complete deployment guide.**
+
 ---
 
 ## 🔄 How It Works
