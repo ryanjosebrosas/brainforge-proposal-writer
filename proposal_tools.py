@@ -787,7 +787,11 @@ async def generate_content(
         content = result.data
 
         word_count = len(content.split())
-        projects_referenced = [p.project_id for p in relevant_projects[:2]]
+
+        # Extract project names from text (simple regex to find project headers)
+        import re
+        project_names = re.findall(r'^# (.+)$', relevant_projects_text, re.MULTILINE)
+        projects_referenced = project_names[:3] if project_names else []
 
         personalization_score = 0.5
         if company_research and company_research.company_name.lower() in content.lower():
