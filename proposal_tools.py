@@ -172,27 +172,34 @@ async def research_company(
 # ========== Tool 2: Search Relevant Projects ==========
 
 def format_project_match(doc: dict, mode: Literal["concise", "detailed"] = "concise") -> ProjectMatch:
-    """Format Supabase document as ProjectMatch model."""
-    metadata = doc.get('metadata', {})
+    """
+    Format hybrid search result as ProjectMatch model.
+
+    NEW: Uses frontmatter from document_metadata (normalized schema).
+    """
+    chunk_metadata = doc.get('chunk_metadata', {})
+    frontmatter = doc.get('frontmatter', {}) or {}
 
     project_match = ProjectMatch(
-        project_id=metadata.get('file_id', 'unknown'),
-        project_name=metadata.get('file_title', 'Untitled Project'),
-        project_type=metadata.get('project_type', 'Unknown'),
-        industry=metadata.get('industry', 'Unknown'),
-        technologies_used=metadata.get('tech_stack', []),
+        project_id=chunk_metadata.get('file_id', 'unknown'),
+        project_name=frontmatter.get('title', chunk_metadata.get('file_title', 'Untitled Project')),
+        project_type=frontmatter.get('project_type', 'Unknown'),
+        industry=frontmatter.get('industry', 'Unknown'),
+        technologies_used=frontmatter.get('tech_stack', []),
         key_metric="",
-        relevance_score=doc.get('similarity', 0.5),
+        relevance_score=doc.get('combined_score', 0.0),  # RRF combined score
         summary=None
     )
 
+    # Extract key metric from content or frontmatter
     content = doc.get('content', '')
-    metrics_match = re.search(r'(\d+%?\s*(?:reduction|improvement|increase|faster|savings))', content, re.IGNORECASE)
+    metrics_match = re.search(r'(\d+%?\s*(?:reduction|improvement|increase|faster|savings|saved))', content, re.IGNORECASE)
     if metrics_match:
         project_match.key_metric = metrics_match.group(1)
 
     if mode == "detailed" and content:
-        project_match.summary = content[:200] + "..."
+        section = chunk_metadata.get('section', '')
+        project_match.summary = f"[{section}] {content[:180]}..."
 
     return project_match
 
@@ -203,36 +210,65 @@ async def search_relevant_projects(
     tech_filter: Optional[List[str]] = None,
     industry: Optional[str] = None,
     project_type: Optional[str] = None,
+    section: Optional[str] = None,
     max_results: int = 5,
     mode: Literal["concise", "detailed"] = "concise"
 ) -> str:
     """
-    Search case studies with metadata filters.
+    Search case studies using HYBRID SEARCH (vector + FTS + RRF).
+
+    NEW BEHAVIOR:
+    - Uses search_hybrid_rag RPC function (combines vector + full-text search)
+    - Filters at database level (faster, more accurate)
+    - Returns frontmatter from document_metadata (normalized schema)
+    - RRF ranking for better relevance
 
     Args:
         ctx: Context with Supabase and embedding clients
-        query: Search query
-        tech_filter: Filter by technologies (e.g., ["Python", "React"])
-        industry: Filter by industry (e.g., "SaaS")
-        project_type: Filter by type (e.g., "AI_ML")
-        max_results: Max projects to return
+        query: Search query (semantic + keyword matching)
+        tech_filter: Filter by technologies (e.g., ["Snowflake", "n8n"])
+        industry: Filter by industry (e.g., "Home Services", "E-commerce")
+        project_type: Filter by type (e.g., "AI_ML", "BI_Analytics")
+        section: Filter by section (e.g., "Results", "Challenge")
+        max_results: Max projects to return (default: 5)
         mode: "concise" or "detailed"
 
     Returns:
         JSON string with ProjectSearchResults schema
+
+    Example:
+        search_relevant_projects(
+            query="Snowflake data warehouse analytics dashboard",
+            tech_filter=["Snowflake", "dbt"],
+            industry="E-commerce",
+            max_results=3
+        )
     """
     try:
+        print(f"[SEARCH] Query: '{query}' | Industry: {industry} | Type: {project_type} | Tech: {tech_filter}")
+
+        # Get embedding for vector search component
         query_embedding = await get_embedding(query, ctx.deps.embedding_client)
 
+        # Use ONLY the first tech for database filter (RPC doesn't support arrays)
+        tech_for_filter = tech_filter[0] if tech_filter and len(tech_filter) > 0 else None
+
+        # Call hybrid search RPC (vector + FTS with RRF)
         result = ctx.deps.supabase.rpc(
-            'match_documents',
+            'search_hybrid_rag',
             {
+                'query_text': query,
                 'query_embedding': query_embedding,
-                'match_count': max_results * 2
+                'match_count': max_results,
+                'industry_filter': industry,
+                'project_type_filter': project_type,
+                'tech_filter': tech_for_filter,
+                'section_filter': section
             }
         ).execute()
 
         if not result.data:
+            print("[SEARCH] No results found")
             return ProjectSearchResults(
                 matches=[],
                 total_found=0,
@@ -240,25 +276,10 @@ async def search_relevant_projects(
                 filters_applied={}
             ).model_dump_json()
 
-        filtered_results = []
-        for doc in result.data:
-            metadata = doc.get('metadata', {})
+        # Format results
+        matches = [format_project_match(doc, mode) for doc in result.data]
 
-            if tech_filter:
-                doc_tech = metadata.get('tech_stack', [])
-                if not any(tech in doc_tech for tech in tech_filter):
-                    continue
-
-            if industry and metadata.get('industry') != industry:
-                continue
-
-            if project_type and metadata.get('project_type') != project_type:
-                continue
-
-            filtered_results.append(doc)
-
-        matches = [format_project_match(doc, mode) for doc in filtered_results[:max_results]]
-
+        # Build filters_applied dict
         filters_applied = {}
         if tech_filter:
             filters_applied['tech_filter'] = tech_filter
@@ -266,16 +287,22 @@ async def search_relevant_projects(
             filters_applied['industry'] = industry
         if project_type:
             filters_applied['project_type'] = project_type
+        if section:
+            filters_applied['section'] = section
+
+        print(f"[SEARCH] Found {len(matches)} matches (scores: {[round(m.relevance_score, 3) for m in matches]})")
 
         return ProjectSearchResults(
             matches=matches,
-            total_found=len(filtered_results),
+            total_found=len(matches),
             search_query=query,
             filters_applied=filters_applied
         ).model_dump_json()
 
     except Exception as e:
         print(f"Error in search_relevant_projects: {e}")
+        import traceback
+        traceback.print_exc()
         return ProjectSearchResults(
             matches=[],
             total_found=0,
@@ -336,24 +363,38 @@ async def get_project_details(
     sections: List[str] = ["context", "challenge", "solution", "results"]
 ) -> str:
     """
-    Get detailed sections from a case study.
+    Get detailed sections from a case study using normalized schema.
+
+    NEW BEHAVIOR:
+    - Uses get_case_study_full RPC (retrieves from document_metadata + documents + document_rows)
+    - Returns frontmatter, all chunks organized by section, and metrics
+    - Single efficient query instead of multiple table scans
 
     Args:
         ctx: Context with Supabase client
         project_id: Project file_id from search results
-        sections: Sections to retrieve
+        sections: Sections to retrieve (filters which sections to include)
 
     Returns:
         JSON string with ProjectDetails schema
+
+    Example:
+        get_project_details(
+            project_id="abc_home_dashboard.md",
+            sections=["challenge", "solution", "results"]
+        )
     """
     try:
-        result = ctx.deps.supabase.from_('documents') \
-            .select('id, content, metadata') \
-            .eq('metadata->>file_id', project_id) \
-            .order('id') \
-            .execute()
+        print(f"[GET_DETAILS] Retrieving case study: {project_id}")
 
-        if not result.data:
+        # Call RPC to get full case study from normalized schema
+        result = ctx.deps.supabase.rpc(
+            'get_case_study_full',
+            {'case_study_file_id': project_id}
+        ).execute()
+
+        if not result.data or len(result.data) == 0:
+            print(f"[GET_DETAILS] No data found for {project_id}")
             return ProjectDetails(
                 project_name="Unknown Project",
                 client_name="Unknown Client",
@@ -361,26 +402,55 @@ async def get_project_details(
                 team=[]
             ).model_dump_json()
 
-        metadata = result.data[0]['metadata']
-        full_content = '\n\n'.join([chunk['content'] for chunk in result.data])
+        case_study = result.data[0]
+        frontmatter = case_study.get('frontmatter', {}) or {}
+        chunks = case_study.get('chunks', []) or []
+        metrics_data = case_study.get('metrics', []) or []
 
-        parsed_sections = parse_markdown_sections(full_content)
+        # Organize chunks by section
+        sections_dict = {}
+        for chunk in chunks:
+            section_name = chunk.get('section', '').lower()
+            if section_name not in sections_dict:
+                sections_dict[section_name] = []
+            sections_dict[section_name].append(chunk.get('content', ''))
 
-        results_section = parsed_sections.get('results', '')
-        metrics = extract_metrics_from_section(results_section)
-        outcomes = [line.strip() for line in results_section.split('\n') if line.strip() and not line.startswith('#')]
+        # Combine content for each section
+        for section_name in sections_dict:
+            sections_dict[section_name] = '\n\n'.join(sections_dict[section_name])
 
+        # Extract metrics from document_rows and section text
+        metrics_dict = {}
+        outcomes = []
+
+        # Add metrics from document_rows
+        for metric in metrics_data:
+            metric_name = metric.get('metric_name', '')
+            metric_value = metric.get('value', metric.get('metric_value', ''))
+            metrics_dict[metric_name] = metric_value
+
+        # Extract additional metrics from Results section text
+        results_text = sections_dict.get('results', '')
+        if results_text:
+            extracted_metrics = extract_metrics_from_section(results_text)
+            metrics_dict.update(extracted_metrics)
+            outcomes = [line.strip() for line in results_text.split('\n')
+                       if line.strip() and not line.startswith('#') and not line.startswith('|')][:3]
+
+        # Build ProjectDetails response
         project_details = ProjectDetails(
-            project_name=metadata.get('file_title', 'Untitled').split(' - ')[0],
-            client_name=metadata.get('client', 'Client'),
-            context=parsed_sections.get('context') or parsed_sections.get('background') if 'context' in sections else None,
-            challenge=parsed_sections.get('challenge') if 'challenge' in sections else None,
-            solution=parsed_sections.get('solution') if 'solution' in sections else None,
-            results=Results(metrics=metrics, outcomes=outcomes[:3]) if 'results' in sections else None,
-            testimonial=parsed_sections.get('testimonial'),
-            tools_used=metadata.get('tech_stack', []),
-            team=[]
+            project_name=frontmatter.get('title', 'Untitled Project'),
+            client_name=frontmatter.get('client', 'Unknown Client'),
+            context=sections_dict.get('context') if 'context' in [s.lower() for s in sections] else None,
+            challenge=sections_dict.get('challenge') if 'challenge' in [s.lower() for s in sections] else None,
+            solution=sections_dict.get('solution') if 'solution' in [s.lower() for s in sections] else None,
+            results=Results(metrics=metrics_dict, outcomes=outcomes) if 'results' in [s.lower() for s in sections] else None,
+            testimonial=sections_dict.get('testimonial'),
+            tools_used=frontmatter.get('tech_stack', []),
+            team=frontmatter.get('team', []) if isinstance(frontmatter.get('team'), list) else []
         )
+
+        print(f"[GET_DETAILS] Retrieved {len(chunks)} chunks, {len(metrics_dict)} metrics")
 
         return project_details.model_dump_json()
 

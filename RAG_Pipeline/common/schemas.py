@@ -40,6 +40,8 @@ SOURCE_TYPES = Literal["google_drive", "local_file", "manual_upload"]
 class CaseStudyFrontmatter(BaseModel):
     """Metadata extracted from case study YAML frontmatter."""
 
+    model_config = {"populate_by_name": True}  # Allow both field name and alias
+
     title: str = Field(..., description="Case study title")
     client: str = Field(..., description="Client organization name")
     industry: str = Field(..., description="Industry/sector (e.g., 'Home Services', 'E-commerce')")
@@ -47,13 +49,15 @@ class CaseStudyFrontmatter(BaseModel):
         ...,
         description="Project category (e.g., 'Workflow_Automation', 'AI_ML')"
     )
-    technologies_used: List[str] = Field(
+    tech_stack: List[str] = Field(
         default_factory=list,
-        description="Tech stack used in project"
+        description="Tech stack used in project",
+        alias="technologies_used"  # Support both names
     )
-    key_metrics: Optional[Dict[str, Any]] = Field(
+    key_metrics: Optional[List[Dict[str, Any]] | Dict[str, Any]] = Field(
         None,
-        description="Quantifiable outcomes (e.g., {'error_reduction': 90, 'time_saved': 50})"
+        alias="metrics",  # Support both 'metrics' and 'key_metrics'
+        description="Quantifiable outcomes - can be dict or list of metric objects"
     )
     function: Optional[str] = Field(
         None,

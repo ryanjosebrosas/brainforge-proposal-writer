@@ -1,6 +1,7 @@
 import os
 import io
 import csv
+import sys
 import tempfile
 from typing import List, Dict, Any, Tuple, Optional
 import pypdf
@@ -8,8 +9,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
 
-from .metadata_parser import parse_case_study
-from .schemas import CaseStudyFrontmatter
+# Add common directory to path for imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from metadata_parser import parse_case_study
+from schemas import CaseStudyFrontmatter
 
 # Load environment variables from the project root .env file
 # Get the path to the project root (4_Pydantic_AI_Agent directory)
@@ -43,11 +47,27 @@ def chunk_text(text: str, chunk_size: int = 400, overlap: int = 0) -> List[str]:
     
     # Split text into chunks
     chunks = []
-    for i in range(0, len(text), chunk_size - overlap):
-        chunk = text[i:i + chunk_size]
-        if chunk:  # Only add non-empty chunks
+    i = 0
+    while i < len(text):
+        # Get chunk of desired size
+        end = min(i + chunk_size, len(text))
+        chunk = text[i:end]
+
+        # If not at end of text, find last space to avoid cutting words
+        if end < len(text):
+            last_space = chunk.rfind(' ')
+            last_newline = chunk.rfind('\n')
+            last_break = max(last_space, last_newline)
+
+            if last_break > chunk_size * 0.5:  # Only if we found a break in second half
+                chunk = text[i:i + last_break + 1]
+
+        if chunk.strip():  # Only add non-empty chunks
             chunks.append(chunk)
-    
+
+        # Move forward by chunk_size - overlap, ensuring we always progress
+        i += max(len(chunk) - overlap, 1)
+
     return chunks
 
 def extract_text_from_pdf(file_content: bytes) -> str:

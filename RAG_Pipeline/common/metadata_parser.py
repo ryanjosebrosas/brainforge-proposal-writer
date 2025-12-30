@@ -12,7 +12,7 @@ import yaml
 from typing import Tuple, Dict, Any, Optional
 from pydantic import ValidationError
 
-from .schemas import CaseStudyFrontmatter
+from schemas import CaseStudyFrontmatter
 
 
 def extract_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
