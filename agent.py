@@ -267,7 +267,16 @@ async def search_relevant_projects(
         search_relevant_projects(ctx, "e-commerce analytics dashboard", tech_filter=["Tableau", "Python"])
     """
     print(f"Calling search_relevant_projects tool with query: {query}")
-    return await search_relevant_projects_tool(ctx, query, tech_filter, industry, project_type, max_results, mode)
+    return await search_relevant_projects_tool(
+        ctx=ctx,
+        query=query,
+        tech_filter=tech_filter,
+        industry=industry,
+        project_type=project_type,
+        section=None,  # Section filter not exposed in agent tool
+        max_results=max_results,
+        mode=mode
+    )
 
 @agent.tool
 async def get_project_details(
