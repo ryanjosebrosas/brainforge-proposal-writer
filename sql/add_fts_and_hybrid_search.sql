@@ -90,12 +90,12 @@ BEGIN
     d.metadata as chunk_metadata,
     m.schema->'frontmatter' as frontmatter,
     m.schema->'sections' as sections,
-    COALESCE(v.score, 0) as vector_score,
-    COALESCE(f.score, 0) as fts_score,
+    COALESCE(v.score, 0)::DOUBLE PRECISION as vector_score,
+    COALESCE(f.score, 0)::DOUBLE PRECISION as fts_score,
     -- RRF formula: sum(1/(constant + rank))
     -- Vector weight: 1.0, FTS weight: 1.2 (slightly prefer exact matches)
     (COALESCE(1.0/(60 + v.rank), 0) * 1.0 +
-     COALESCE(1.0/(60 + f.rank), 0) * 1.2) as combined_score
+     COALESCE(1.0/(60 + f.rank), 0) * 1.2)::DOUBLE PRECISION as combined_score
   FROM documents d
   JOIN document_metadata m ON d.metadata->>'file_id' = m.file_id
   LEFT JOIN vector_results v ON d.id = v.id
