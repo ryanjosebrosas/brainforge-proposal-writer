@@ -42,7 +42,7 @@ RETURNS TABLE (
   content TEXT,
   chunk_metadata JSONB,
   frontmatter JSONB,
-  sections TEXT[],
+  sections JSONB,
   vector_score FLOAT,
   fts_score FLOAT,
   combined_score FLOAT
@@ -89,7 +89,7 @@ BEGIN
     d.content,
     d.metadata as chunk_metadata,
     m.schema->'frontmatter' as frontmatter,
-    (m.schema->'sections')::TEXT[] as sections,
+    m.schema->'sections' as sections,
     COALESCE(v.score, 0) as vector_score,
     COALESCE(f.score, 0) as fts_score,
     -- RRF formula: sum(1/(constant + rank))
@@ -117,7 +117,7 @@ RETURNS TABLE (
   file_id TEXT,
   file_name TEXT,
   frontmatter JSONB,
-  sections TEXT[],
+  sections JSONB,
   total_sections INT,
   chunks JSONB,
   metrics JSONB
@@ -130,7 +130,7 @@ BEGIN
     m.file_id,
     m.file_name,
     m.schema->'frontmatter' as frontmatter,
-    (m.schema->'sections')::TEXT[] as sections,
+    m.schema->'sections' as sections,
     (m.schema->>'total_sections')::INT as total_sections,
     jsonb_agg(
       jsonb_build_object(
