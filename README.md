@@ -62,9 +62,17 @@ cp .env.example .env
 
 5. **Set up Supabase database**
 - Create a new Supabase project
-- Run the SQL schema from `sql/` directory (if available)
 - Enable PGVector extension
-- Create `documents` table with embedding column
+- Run SQL migrations in order:
+  ```bash
+  # Core schema (documents table)
+  psql $DATABASE_URL -f sql/schema.sql
+
+  # Template customization (NEW)
+  psql $DATABASE_URL -f db_migrations/001_add_user_preferences.sql
+  psql $DATABASE_URL -f db_migrations/002_seed_default_templates.sql
+  ```
+- Verify tables created: `documents`, `proposal_templates`, `tone_presets`, `user_preferences`, `content_restrictions`
 
 6. **Prepare case study data**
 - Convert case studies to markdown format
@@ -78,6 +86,44 @@ streamlit run streamlit_ui.py
 ```
 
 Visit `http://localhost:8501` in your browser.
+
+### 🎨 Configure Templates (Optional)
+
+The system includes 3 templates and 4 tones by default. To customize:
+
+1. **View Available Templates:**
+   ```sql
+   -- In Supabase SQL Editor
+   SELECT name, template_type, description FROM proposal_templates;
+   SELECT name, tone_type, description FROM tone_presets;
+   ```
+
+2. **Set User Preferences:**
+   ```sql
+   -- Insert user preference
+   INSERT INTO user_preferences (user_id, template_id, tone_id)
+   VALUES ('default_user', 'consultative-001', 'conversational-001');
+   ```
+
+3. **Add Content Restrictions:**
+   ```sql
+   -- Add forbidden phrases and required elements
+   INSERT INTO content_restrictions (user_id, forbidden_phrases, required_elements, word_count_overrides)
+   VALUES (
+     'default_user',
+     '["competitor_name", "guaranteed", "very *"]',
+     '["Python", "experience"]',
+     '{"upwork_proposal": {"min": 200, "max": 400}}'
+   );
+   ```
+
+4. **Create Settings Page (Future):**
+   - Navigate to Settings (once UI is built)
+   - Select template and tone
+   - Configure restrictions
+   - Save preferences
+
+For now, preferences are managed via SQL until the Settings UI is implemented.
 
 ### 🌐 Deploy to Replit (Alternative to Local Setup)
 
@@ -165,10 +211,11 @@ For cloud deployment on Replit:
 ### Dual-Mode Interface
 
 #### 📝 Upwork Proposal Mode
-Generate tailored 400-600 word proposals for Upwork job postings:
+Generate tailored 150-300 word proposals for Upwork job postings:
 - Automatic company research (if mentioned in posting)
 - Technology-based project matching
 - Specific metrics and examples from past work
+- Customizable templates and tones
 - Professional tone with clear call-to-action
 
 #### 📧 Outreach Email Mode
@@ -176,7 +223,30 @@ Create personalized 100-200 word cold outreach emails:
 - Company intelligence gathering via Brave Search
 - Industry-based project matching
 - Pain point identification
+- Customizable writing styles
 - Calendly link integration
+
+### 🎨 Template Customization (NEW)
+
+#### Pre-defined Templates
+Choose from 3 proposal structure variants:
+- **Technical** - Deep technical focus with detailed solution architecture
+- **Consultative** - Business-value driven with strategic insights
+- **Quick Win** - Fast, results-focused highlighting quick delivery
+
+#### Tone Presets
+Select from 4 writing styles:
+- **Professional** - Formal, polished tone for corporate communications
+- **Conversational** - Friendly, approachable with natural language flow
+- **Technical** - Technically precise with industry terminology
+- **Friendly** - Warm, personable tone that builds rapport
+
+#### Content Restrictions
+Enforce organizational guidelines:
+- **Forbidden Phrases** - Block competitor mentions, overpromising terms
+- **Required Elements** - Enforce credential references, methodologies
+- **Custom Word Counts** - Override default ranges per content type
+- **Wildcard Support** - Pattern matching (e.g., "very *" blocks "very good", "very bad")
 
 ### 5 Specialized AI Tools
 
@@ -256,9 +326,15 @@ with Snowflake, dbt, and Tableau. Our company is GreenLeaf Organics.
 ├── tools.py                 # General tools (web search, RAG, SQL, vision)
 ├── proposal_tools.py        # 5 specialized proposal writer tools
 ├── proposal_schemas.py      # 7 Pydantic models for type safety
+├── template_schemas.py      # 5 Pydantic models for templates (NEW)
+├── template_manager.py      # Template CRUD + prompt customization (NEW)
+├── restriction_validator.py # Content filtering engine (NEW)
 ├── prompt.py                # System prompt for proposal writer
 ├── clients.py               # Supabase, OpenAI, Mem0 client setup
 ├── streamlit_ui.py          # Dual-mode web interface
+├── db_migrations/           # Database migrations (NEW)
+│   ├── 001_add_user_preferences.sql
+│   └── 002_seed_default_templates.sql
 ├── RAG_Pipeline/            # Document ingestion pipelines
 │   ├── Local_Files/         # Local directory watcher
 │   ├── Google_Drive/        # Google Drive watcher
@@ -429,13 +505,17 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed configuration guide.
 - **Personalization (30%):** Company context included
 - **Structure (20%):** Professional tone, proper sections
 - **Length (10%):** Word count compliance
+- **No Forbidden Phrases (30%):** Content restriction compliance (when enabled)
+- **Required Elements (20%):** Mandatory element presence (when enabled)
 
 ### Minimum Thresholds
 - **Quality Score:** ≥8.0/10 (enforced)
-- **Upwork Proposals:** 400-600 words
-- **Outreach Emails:** 100-200 words
+- **Upwork Proposals:** 150-300 words (customizable)
+- **Outreach Emails:** 100-200 words (customizable)
 - **Project References:** ≥1 specific example
 - **Metrics:** ≥2 concrete numbers/percentages
+- **Deck Inclusion:** ≥1 capability deck (AI or Data)
+- **Case Studies:** 2-3 relevant project examples
 
 ---
 
