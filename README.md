@@ -136,6 +136,37 @@ For cloud deployment on Replit:
 
 ---
 
+## ⚡ Recent Updates
+
+### PydanticAI 1.39.0 Upgrade (December 2024)
+
+**Breaking Changes Fixed:**
+- ✅ Upgraded from PydanticAI v0.0.53 → v1.39.0
+- ✅ Fixed `AgentRunResult.data` → `AgentRunResult.output`
+- ✅ Updated `result_type` → `output_type` parameter
+- ✅ Changed OpenAI model initialization to use environment variables
+- ✅ Fixed Pydantic schema generation for `Dict[str, Any]` types
+
+**Impact:**
+- All agent tools working correctly with latest PydanticAI API
+- Improved stability and performance
+- Better error handling and logging
+
+**Migration Guide:**
+If you're upgrading from an older version:
+1. Update `requirements.txt`: `pip install -r requirements.txt`
+2. Ensure environment variables are set (see Configuration section)
+3. Restart Streamlit: `streamlit run streamlit_ui.py`
+
+**Commits:**
+- `1907b54` - Fix AgentRunResult.output attribute
+- `4fd632c` - Preserve full file_id path in search results
+- `5b214e5` - Update to PydanticAI 1.39.0 API changes
+- `288cad8` - Use environment variables for OpenAI client
+- `0422e8a` - Fix Pydantic schema for Any types
+
+---
+
 ## 🔄 How It Works
 
 ```
@@ -467,7 +498,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed configuration guide.
 ```
 
 ### Tech Stack
-- **Framework:** PydanticAI v0.0.53 (agent orchestration)
+- **Framework:** PydanticAI v1.39.0 (agent orchestration) ⚠️ **Updated from v0.0.53**
 - **UI:** Streamlit v1.44.1
 - **Database:** Supabase (PostgreSQL + PGVector v0.3.6)
 - **LLMs:** OpenAI, Azure OpenAI, Anthropic, Ollama (configurable)
