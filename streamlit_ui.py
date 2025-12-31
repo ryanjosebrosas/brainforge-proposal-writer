@@ -128,7 +128,12 @@ Follow the complete workflow:
    - Call search_relevant_projects(query="analytics dashboards", mode="detailed")
    - CRITICAL: NO industry, NO project_type parameters
 
-   COMBINE results from both sweeps, deduplicate, pick top 2-3 best matches
+   **CRITICAL DEDUPLICATION STEP:**
+   - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
+   - Look for DUPLICATE Project IDs across both result sets
+   - REMOVE duplicates - keep ONLY the first occurrence (from SWEEP #1)
+   - This ensures you reference each case study ONLY ONCE
+   - Pick top 2-3 UNIQUE case studies based on relevance scores
 
 4. Use generate_content with deck content + case studies (mention "{deck_name}" in attachment note)
 5. Use review_and_score to validate quality
@@ -170,7 +175,12 @@ Follow the complete workflow:
    - Call search_relevant_projects(query="analytics consulting", mode="detailed")
    - CRITICAL: NO industry or project_type parameters
 
-   COMBINE both sweeps, deduplicate, pick top 2-3
+   **CRITICAL DEDUPLICATION STEP:**
+   - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
+   - Look for DUPLICATE Project IDs across both result sets
+   - REMOVE duplicates - keep ONLY the first occurrence (from SWEEP #1)
+   - This ensures you reference each case study ONLY ONCE
+   - Pick top 2-3 UNIQUE case studies based on relevance scores
 
 4. Use generate_content with deck content + case studies (mention "{deck_name}" in attachment)
 5. Use review_and_score to validate quality
@@ -209,7 +219,12 @@ Follow the complete workflow:
    - Call search_relevant_projects(query="data analytics", mode="detailed")
    - NO industry, NO project_type parameters
 
-   COMBINE both results, deduplicate
+   **CRITICAL DEDUPLICATION STEP:**
+   - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
+   - Look for DUPLICATE Project IDs across both result sets
+   - REMOVE duplicates - keep ONLY the first occurrence (from SWEEP #1)
+   - This ensures you reference each case study ONLY ONCE
+   - Pick top 2-3 UNIQUE case studies based on relevance scores
 
 4. Use generate_content with deck content + case studies
 5. Use review_and_score to validate quality

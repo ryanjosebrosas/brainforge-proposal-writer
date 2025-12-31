@@ -58,10 +58,12 @@ Extract from the job posting:
 - Example: search_relevant_projects(query="analytics dashboard reporting", mode="detailed")
 - Catches great matches that might have been excluded by filters
 
-**COMBINE & DEDUPLICATE:**
-- Merge results from both sweeps
-- Remove duplicates (same project appearing twice)
-- Pick top 2-3 best matches based on relevance scores
+**CRITICAL DEDUPLICATION STEP:**
+- After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
+- Look for DUPLICATE Project IDs across both result sets
+- REMOVE duplicates - keep ONLY the first occurrence (from SWEEP #1)
+- This ensures you reference each case study ONLY ONCE
+- Pick top 2-3 UNIQUE case studies based on relevance scores
 - Ensures you don't miss excellent matches due to overly narrow filters
 
 **CRITICAL:** This three-search approach (1 deck + 2 case study sweeps):
