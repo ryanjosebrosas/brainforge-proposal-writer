@@ -649,15 +649,15 @@ def build_enriched_project_match(search_doc: dict, full_study: dict, file_id: st
     Returns:
         ProjectMatch with complete context and all metrics
     """
-    # Get data from ALL 3 connected tables: documents, documents_metadata, document_row
-    frontmatter = full_study.get('frontmatter', {}) or full_study.get('documents_metadata', {}) or {}
-    chunks = full_study.get('chunks', []) or full_study.get('documents', []) or []
-    rows = full_study.get('document_row', []) or full_study.get('rows', []) or []
+    # Get data from RPC response (get_case_study_full returns: frontmatter, chunks, metrics)
+    frontmatter = full_study.get('frontmatter', {}) or {}
+    chunks = full_study.get('chunks', []) or []
+    rpc_metrics = full_study.get('metrics', []) or []  # Structured metrics from RPC
 
-    # Debug: log what we got from all 3 tables
-    print(f"[SUPABASE] Retrieved from 3 tables - documents_metadata: {bool(frontmatter)}, documents: {len(chunks)}, document_row: {len(rows)}")
-    if not frontmatter and not chunks and not rows:
-        print(f"[SUPABASE] WARNING: No data from any table! Keys available: {list(full_study.keys())}")
+    # Debug: log what we got from RPC
+    print(f"[RPC] Retrieved - frontmatter: {bool(frontmatter)}, chunks: {len(chunks)}, metrics: {len(rpc_metrics)}")
+    if not frontmatter and not chunks:
+        print(f"[RPC] WARNING: No data from RPC! Keys available: {list(full_study.keys())}")
 
     # Debug: Show what's actually IN the chunks
     if chunks:
@@ -668,13 +668,17 @@ def build_enriched_project_match(search_doc: dict, full_study: dict, file_id: st
             print(f"[DEBUG] First chunk content length: {len(content)} chars")
             print(f"[DEBUG] First chunk content preview: {content[:200]}")
 
-    # PRIORITY: Use STRUCTURED data from all connected tables
+    # PRIORITY: Use STRUCTURED metrics from RPC (frontmatter.key_metrics OR metrics field)
     all_metrics = []
 
-    # Get structured metrics from frontmatter (BEST source)
+    # Try frontmatter.key_metrics first (most complete)
     frontmatter_metrics = frontmatter.get('key_metrics', [])
-    if frontmatter_metrics and isinstance(frontmatter_metrics, list):
-        for metric in frontmatter_metrics:
+
+    # Use RPC metrics if frontmatter doesn't have them
+    metrics_to_use = frontmatter_metrics if frontmatter_metrics else rpc_metrics
+
+    if metrics_to_use and isinstance(metrics_to_use, list):
+        for metric in metrics_to_use:
             if isinstance(metric, dict):
                 value = metric.get('value', '')
                 unit = metric.get('unit', '')
@@ -689,20 +693,11 @@ def build_enriched_project_match(search_doc: dict, full_study: dict, file_id: st
                     metric_str = f"{value} {metric_type}"
 
                 all_metrics.append(metric_str)
-        print(f"[PARSE] Found {len(all_metrics)} structured metrics from frontmatter")
 
-    # Fallback: Get metrics from document_rows table if no frontmatter metrics
-    if not all_metrics:
-        metrics = full_study.get('metrics', []) or []
-        if metrics:
-            for metric in metrics:
-                if isinstance(metric, dict):
-                    value = metric.get('value', '')
-                    unit = metric.get('unit', '')
-                    metric_str = f"{value}{unit}" if unit else str(value)
-                    all_metrics.append(metric_str)
+        source = "frontmatter" if frontmatter_metrics else "RPC metrics"
+        print(f"[PARSE] Found {len(all_metrics)} structured metrics from {source}")
 
-    # Last resort: Parse from text (least accurate)
+    # Fallback: Parse from text (last resort if no structured metrics)
     if not all_metrics:
         results_chunks = [c for c in chunks if c.get('section', '').lower() == 'results']
         for chunk in results_chunks:
@@ -714,34 +709,24 @@ def build_enriched_project_match(search_doc: dict, full_study: dict, file_id: st
             )
             all_metrics.extend(found[:3])
 
-    # Build rich summary with data from ALL 3 TABLES
+    # Build rich summary from RPC data (frontmatter + chunks + metrics)
     summary_parts = []
 
-    # 1. DOCUMENTS_METADATA table: frontmatter
+    # 1. FRONTMATTER: Case study metadata
     client = frontmatter.get('client', 'Unknown Client')
     summary_parts.append(f"**Client**: {client}")
     summary_parts.append(f"**Industry**: {frontmatter.get('industry', 'Unknown')}")
     summary_parts.append(f"**Project Type**: {frontmatter.get('project_type', 'Unknown')}")
     summary_parts.append(f"**Tech Stack**: {', '.join(frontmatter.get('tech_stack', []))}")
 
-    # 2. DOCUMENT_ROW table: structured row data (if available)
-    if rows:
-        summary_parts.append(f"**Structured Data**: {len(rows)} rows available")
-        # Include row data in summary
-        for i, row in enumerate(rows[:5]):  # Show first 5 rows
-            if isinstance(row, dict):
-                row_text = ", ".join([f"{k}: {v}" for k, v in row.items() if k and v])
-                if row_text:
-                    summary_parts.append(f"  - Row {i+1}: {row_text}")
-
-    # Add ALL metrics prominently
+    # 2. METRICS: Structured metrics (from frontmatter or RPC metrics field)
     if all_metrics:
         metrics_str = ", ".join(list(dict.fromkeys(all_metrics))[:8])  # Up to 8 unique metrics
         summary_parts.append(f"**Key Metrics**: {metrics_str}")
 
     summary_parts.append("")  # Blank line
 
-    # 3. DOCUMENTS: Complete content from all chunks (NO truncation!)
+    # 3. CHUNKS: Complete content from all chunks (NO truncation!)
     # Get unique sections from chunks
     all_sections = list(dict.fromkeys([c.get('section', '').lower() for c in chunks if c.get('section')]))
 
