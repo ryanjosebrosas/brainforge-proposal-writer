@@ -36,7 +36,7 @@ load_dotenv(dotenv_path, override=True)
 
 # ========== Helper function to get model configuration ==========
 def get_model():
-    from pydantic_ai import Provider
+    from pydantic_ai.providers import Provider
 
     llm = os.getenv('LLM_CHOICE') or 'gpt-4o-mini'
     base_url = os.getenv('LLM_BASE_URL') or 'https://api.openai.com/v1'
