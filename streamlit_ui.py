@@ -198,9 +198,30 @@ Follow the complete workflow:
 Return the final email with quality score."""
 
         # Run the agent
-        result = await agent.run(prompt, deps=agent_deps)
+        try:
+            print(f"\n{'='*60}")
+            print(f"STARTING AGENT RUN")
+            print(f"Prompt length: {len(prompt)} chars")
+            print(f"{'='*60}\n")
 
-        return result.data
+            result = await agent.run(prompt, deps=agent_deps)
+
+            print(f"\n{'='*60}")
+            print(f"AGENT RUN COMPLETED SUCCESSFULLY")
+            print(f"{'='*60}\n")
+
+            return result.data
+
+        except Exception as e:
+            import traceback
+            print(f"\n{'='*60}")
+            print(f"ERROR IN AGENT.RUN()")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            print(f"\nFull traceback:")
+            traceback.print_exc()
+            print(f"{'='*60}\n")
+            raise
 
 
 def display_quality_score(score):
