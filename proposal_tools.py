@@ -863,7 +863,7 @@ Requirements:
 
 async def generate_content(
     ctx: RunContext[AgentDeps],
-    content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
+    content_type: Literal["upwork_proposal", "catalant_proposal", "outreach_email", "rfp_response"],
     company_research_json: str,
     relevant_projects_text: str,
     user_context: str,

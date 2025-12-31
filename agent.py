@@ -323,7 +323,7 @@ async def get_project_details(
 @agent.tool
 async def generate_content(
     ctx: RunContext[AgentDeps],
-    content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
+    content_type: Literal["upwork_proposal", "catalant_proposal", "outreach_email", "rfp_response"],
     company_research_json: str,
     relevant_projects_text: str,
     user_context: str,
@@ -341,7 +341,8 @@ async def generate_content(
     Args:
         ctx: Context with LLM client
         content_type: Type of content to generate:
-                     - "upwork_proposal": 150-300 word proposal for job posting
+                     - "upwork_proposal": 1500 character proposal for Upwork job posting
+                     - "catalant_proposal": 500-800 word formal consulting proposal
                      - "outreach_email": 100-200 word cold outreach
                      - "rfp_response": Formal RFP response
         company_research_json: JSON from research_company tool (can be empty string if no company)
