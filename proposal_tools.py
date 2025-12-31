@@ -171,10 +171,16 @@ def parse_html_for_company_info(html: str, company_name: str) -> dict:
         industry = "Unknown"
         if any(keyword in full_text for keyword in ["healthcare", "health", "medical", "patient", "clinic", "hospital", "telehealth", "pharmacy"]):
             industry = "Healthcare"
+        elif any(keyword in full_text for keyword in ["home services", "hvac", "plumbing", "electrical", "cleaning", "pest control", "lawn care", "handyman"]):
+            industry = "Home Services"
         elif any(keyword in full_text for keyword in ["ecommerce", "e-commerce", "retail", "shop", "store", "marketplace"]):
             industry = "E-commerce"
+        elif any(keyword in full_text for keyword in ["marketing", "advertising", "agency", "brand", "campaign", "digital marketing"]):
+            industry = "Marketing"
         elif any(keyword in full_text for keyword in ["saas", "software as a service", "cloud platform", "api", "developer"]):
             industry = "SaaS"
+        elif any(keyword in full_text for keyword in ["consumer goods", "consumer packaged goods", "cpg", "fmcg", "retail products"]):
+            industry = "Consumer Packaged Goods"
         elif any(keyword in full_text for keyword in ["finance", "financial", "banking", "fintech", "payment", "trading"]):
             industry = "Finance"
         elif any(keyword in full_text for keyword in ["education", "learning", "university", "school", "training", "course"]):
