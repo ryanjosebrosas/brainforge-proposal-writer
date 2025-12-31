@@ -294,9 +294,12 @@ async def get_project_details(
     the top matching projects. This provides the specific metrics and context
     needed for personalized proposals.
 
+    CRITICAL: Use the **Project ID** field from search results, NOT the project name.
+
     Args:
         ctx: Context with Supabase client
-        project_id: The file_id from search_relevant_projects results
+        project_id: The **Project ID** value from search_relevant_projects results
+                   Example: "eden_data_operating_system.md" NOT "Eden Data Operating System"
         sections: Which sections to retrieve (default: all main sections)
                  Options: "context", "challenge", "solution", "results", "testimonial"
 
@@ -308,8 +311,11 @@ async def get_project_details(
         - testimonial, tools_used, team
 
     Example:
-        After getting project_id "abc-home-001" from search, call:
-        get_project_details(ctx, "abc-home-001")
+        From search results showing:
+        # Eden Data Operating System
+        **Project ID:** eden_data_operating_system.md
+
+        Call: get_project_details(ctx, "eden_data_operating_system.md")
     """
     print(f"Calling get_project_details tool for project: {project_id}")
     return await get_project_details_tool(ctx, project_id, sections)

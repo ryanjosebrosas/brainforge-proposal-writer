@@ -451,6 +451,7 @@ async def search_relevant_projects(
             metric_str = match.key_metric if match.key_metric else "N/A"
 
             project_text = f"""# {match.project_name}
+**Project ID:** {match.project_id}
 **Project Type:** {match.project_type}
 **Industry:** {match.industry}
 **Technologies:** {tech_str}
