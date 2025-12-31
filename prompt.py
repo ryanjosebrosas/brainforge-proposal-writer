@@ -51,12 +51,14 @@ Extract from the job posting:
 - Example: search_relevant_projects(query="healthcare data analytics reporting", industry="Healthcare", project_type="BI_Analytics")
 - Gets highly relevant, specific matches
 
-**SECOND SWEEP - Broader/General:**
+**SECOND SWEEP - Semi-Filtered:**
 - Use general job description keywords
-- CRITICAL: Do NOT pass tech_filter, industry, or project_type parameters
-- Call search_relevant_projects with ONLY query parameter (mode="detailed")
-- Example: search_relevant_projects(query="analytics dashboard reporting", mode="detailed")
-- Catches great matches that might have been excluded by filters
+- KEEP the same industry from CompanyResearch (or job posting)
+- DROP the project_type filter to find all relevant project types
+- Call search_relevant_projects with query + industry (mode="detailed")
+- Example: search_relevant_projects(query="analytics dashboard reporting", industry="Healthcare", mode="detailed")
+- CRITICAL: MUST pass industry parameter, NO project_type parameter
+- Catches different project types within same industry that might have been excluded
 
 **CRITICAL DEDUPLICATION STEP:**
 - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)

@@ -123,10 +123,12 @@ Follow the complete workflow:
    - Call search_relevant_projects(query="[keywords from company]", industry="Healthcare", project_type="BI_Analytics", mode="detailed")
    - CRITICAL: You MUST pass industry parameter from CompanyResearch if available
 
-   SWEEP #2 - Broader search (REQUIRED):
+   SWEEP #2 - Semi-filtered search (REQUIRED):
    - Use general job description keywords
-   - Call search_relevant_projects(query="analytics dashboards", mode="detailed")
-   - CRITICAL: NO industry, NO project_type parameters
+   - KEEP the same industry from SWEEP #1 (from CompanyResearch)
+   - DROP the project_type filter to find all relevant project types
+   - Call search_relevant_projects(query="analytics dashboards", industry="Healthcare", mode="detailed")
+   - CRITICAL: MUST pass industry parameter, NO project_type parameter
 
    **CRITICAL DEDUPLICATION STEP:**
    - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
@@ -170,10 +172,12 @@ Follow the complete workflow:
    - Call search_relevant_projects(query="[context from company]", industry="Healthcare", project_type="BI_Analytics", mode="detailed")
    - CRITICAL: You MUST pass industry parameter from CompanyResearch if available
 
-   SWEEP #2 - Broader (REQUIRED):
+   SWEEP #2 - Semi-filtered (REQUIRED):
    - Use general description keywords
-   - Call search_relevant_projects(query="analytics consulting", mode="detailed")
-   - CRITICAL: NO industry or project_type parameters
+   - KEEP the same industry from SWEEP #1 (from CompanyResearch)
+   - DROP the project_type filter to find all relevant project types
+   - Call search_relevant_projects(query="analytics consulting", industry="Healthcare", mode="detailed")
+   - CRITICAL: MUST pass industry parameter, NO project_type parameter
 
    **CRITICAL DEDUPLICATION STEP:**
    - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
@@ -215,9 +219,12 @@ Follow the complete workflow:
    - Call search_relevant_projects(query="healthcare analytics", industry="Healthcare", project_type="BI_Analytics", mode="detailed")
    - CRITICAL: You MUST pass industry parameter from CompanyResearch
 
-   SWEEP #2 - Broader no filters (REQUIRED):
-   - Call search_relevant_projects(query="data analytics", mode="detailed")
-   - NO industry, NO project_type parameters
+   SWEEP #2 - Semi-filtered (REQUIRED):
+   - Use general keywords
+   - KEEP the same industry from SWEEP #1 (from CompanyResearch)
+   - DROP the project_type filter to find all relevant project types
+   - Call search_relevant_projects(query="data analytics", industry="Healthcare", mode="detailed")
+   - CRITICAL: MUST pass industry parameter, NO project_type parameter
 
    **CRITICAL DEDUPLICATION STEP:**
    - After both sweeps, you will have 2 sets of results (each with "Project ID:" field)
