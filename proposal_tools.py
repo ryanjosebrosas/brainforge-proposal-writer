@@ -609,66 +609,108 @@ def build_text_generation_prompt(
 ) -> str:
     """Build prompt for content generation using TEXT from search tool (PydanticAI pattern)."""
     if content_type == "upwork_proposal":
-        word_count = word_limit if word_limit else "150-300"
-        prompt = f"""Write a compelling Upwork proposal ({word_count} words) for this job:
+        word_count = word_limit if word_limit else "1500 characters"
+        prompt = f"""Write an Upwork proposal for this job posting.
 
+JOB POSTING:
 {user_context}
 
 """
         if company_research:
-            prompt += f"""Company Context:
+            prompt += f"""COMPANY CONTEXT:
 - {company_research.company_name} is in {company_research.industry}
 - Tech stack: {', '.join(company_research.tech_stack)}
 - {company_research.business_description}
 
 """
 
-        prompt += f"""Relevant Brainforge Projects:
-
+        prompt += f"""RELEVANT BRAINFORGE PROJECTS:
 {relevant_projects_text}
 
-Requirements:
-- Reference at least 2 specific metrics from the project details above
-- Mention company-specific context if available
-- Professional, confident tone
-- Clear call-to-action
-- {word_count} words
+CRITICAL: Use this EXACT STRUCTURE for Upwork proposals:
+
+**Intro & Authority:**
+I've built analytics functions that drive attributable revenue growth for Athletic Greens, Midi Health, and Stackblitz.
+
+**Positioning & Value Levers:**
+[Short credibility statement]. I'll help your team [list 3-4 business value levers like: lower CAC, drive conversions, extend LTV, reduce churn].
+
+**Pain & Solution Summary:**
+The biggest business pain appears to be [describe pain from job posting]. I can leverage my expertise in [tools/stack from job] to [solve pain], ensuring [outcome] while providing [additional value].
+
+**Proof of Capability:**
+Sample win from 30+ engagements:
+[Pick ONE project from above with metrics] – [Brief description with quantified results like "40% faster" or "$50K saved"].
+
+**Recommended Next Steps:**
+Here's what I would recommend:
+1. [First actionable recommendation specific to their need]
+2. [Second recommendation - could reference similar Brainforge clients]
+3. [Third recommendation - execution focused]
+
+**Attachment Note:**
+Attached: [Brainforge AI Capabilities Deck or Brainforge Data Capabilities Deck] — it shows exactly how Brainforge applies this expertise to deliver [specific result type].
+
+**Close:**
+Looking forward to connecting to discuss how we can apply similar outcomes here.
+
+REQUIREMENTS:
+- Follow the EXACT structure above (all 7 sections)
+- Include 2+ specific metrics from the project examples
+- No generic language - use specific technologies and outcomes
+- Maximum {word_count}
+- NO semicolons or exclamation points
 """
 
     elif content_type == "catalant_proposal":
-        word_count = word_limit if word_limit else "500-800"
-        prompt = f"""Write a formal Catalant consulting proposal ({word_count} words) for this project:
+        word_count = word_limit if word_limit else "500-800 words"
+        prompt = f"""Write a formal Catalant consulting proposal for this project.
 
+PROJECT BRIEF:
 {user_context}
 
 """
         if company_research:
-            prompt += f"""Company Context:
+            prompt += f"""COMPANY CONTEXT:
 - {company_research.company_name} is in {company_research.industry}
 - Tech stack: {', '.join(company_research.tech_stack)}
 - {company_research.business_description}
 
 """
 
-        prompt += f"""Relevant Brainforge Projects:
-
+        prompt += f"""RELEVANT BRAINFORGE PROJECTS:
 {relevant_projects_text}
 
-Requirements for Catalant Format:
-1. Open with credentials (10+ YOE, Series B startup experience, 9-figure CPG brand, Brainforge consultancy)
-2. State relevance to this specific project type
-3. List 2 detailed past projects (numbered) with:
-   - Client name
-   - Project scope and challenge
-   - Solution approach
-   - Quantified outcome/metrics
-4. Mention 3-5 additional recognizable clients briefly
-5. State immediate availability
-6. Reference attached deck and explain its value
-7. Professional, direct close
+CRITICAL: Use this EXACT STRUCTURE for Catalant proposals:
 
-Style: More formal and credential-focused than Upwork. No "next steps" recommendations.
-Length: {word_count} words
+**Credentials Opening:**
+I'm a senior analytics architect with 10+ YOE building the data function of a Series B startup (100+ member team) and leading the product analytics team at a 9-figure CPG brand. Now I lead Brainforge, the data and AI consultancy for midmarket businesses looking to unlock enterprise level Business Intelligence.
+
+**Relevance Statement:**
+I have experience in [specific domain from job] doing exactly this type of [specific work type from job]. I've completed numerous [relevant project types].
+
+**Past Projects:**
+The two past projects I highlighted with this pitch include [Client A] and [Client B].
+
+1. **[Client A from above]**: [2-3 sentence description: project scope, challenge, solution, and quantified outcome with specific metrics]
+
+2. **[Client B from above]**: [2-3 sentence description: project scope, challenge, solution, and quantified outcome with specific metrics]
+
+**Additional Clients:**
+Additionally, I've worked with [list 3-5 other clients from above] on [brief description of relevant work].
+
+**Availability:**
+I am available to begin this work immediately and look forward to connecting soon.
+
+**Deck Attachment:**
+I've attached our [AI/Data] Capabilities Deck. It shows how we [brief value proposition matching their need].
+
+REQUIREMENTS:
+- Follow the EXACT structure above (all 6 sections)
+- Use REAL client names and metrics from the projects provided
+- More formal than Upwork (credentials-first, no next steps)
+- Length: {word_count}
+- NO semicolons or exclamation points
 """
 
     elif content_type == "outreach_email":
