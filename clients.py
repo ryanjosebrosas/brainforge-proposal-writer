@@ -3,11 +3,23 @@ from openai import AsyncOpenAI
 from supabase import Client
 import os
 
-def get_agent_clients():
+from template_manager import load_user_preferences
+from template_schemas import UserPreferences
+
+def get_agent_clients(user_id: str = "default_user"):
+    """
+    Initialize agent clients and load user preferences.
+
+    Args:
+        user_id: User identifier for loading preferences
+
+    Returns:
+        Tuple of (embedding_client, supabase, user_preferences)
+    """
     # Embedding client setup
     base_url = os.getenv('EMBEDDING_BASE_URL', 'https://api.openai.com/v1')
     api_key = os.getenv('EMBEDDING_API_KEY', 'no-api-key-provided')
-    
+
     embedding_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
     # Supabase client setup
@@ -15,7 +27,20 @@ def get_agent_clients():
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
     supabase = Client(supabase_url, supabase_key)
 
-    return embedding_client, supabase
+    # Load user preferences
+    try:
+        user_preferences = load_user_preferences(supabase, user_id)
+        print(f"Loaded preferences for user: {user_id}")
+    except Exception as e:
+        print(f"Error loading user preferences, using defaults: {e}")
+        user_preferences = UserPreferences(
+            user_id=user_id,
+            template_id="technical-001",
+            tone_id="professional-001",
+            restrictions=None
+        )
+
+    return embedding_client, supabase, user_preferences
 
 def get_mem0_config():
     # Get LLM provider and configuration

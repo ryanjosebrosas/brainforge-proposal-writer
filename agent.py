@@ -26,6 +26,7 @@ from proposal_tools import (
     generate_content as generate_content_tool,
     review_and_score as review_and_score_tool
 )
+from template_schemas import UserPreferences
 
 # Load environment variables from what we have set for our agent
 project_root = Path(__file__).resolve().parent
@@ -49,6 +50,8 @@ class AgentDeps:
     brave_api_key: str | None
     searxng_base_url: str | None
     memories: str
+    user_id: str = "default_user"
+    user_preferences: Optional[UserPreferences] = None
 
 # To use the code execution MCP server:
 # First uncomment the line below that defines 'code_execution_server', then also uncomment 'mcp_servers=[code_execution_server]'

@@ -23,6 +23,12 @@ from proposal_schemas import (
     CompanyResearch, ProjectMatch, ProjectSearchResults,
     ProjectDetails, Results, GeneratedContent, Issue, ContentReview
 )
+from restriction_validator import (
+    check_forbidden_phrases,
+    check_required_elements,
+    get_word_count_range
+)
+from template_schemas import ContentRestriction
 from tools import get_embedding
 
 
@@ -825,8 +831,22 @@ async def generate_content(
 
 # ========== Tool 5: Review and Score ==========
 
-def check_quality_criteria(content: str, content_type: str) -> Dict[str, Any]:
-    """Check quality criteria based on content type."""
+def check_quality_criteria(
+    content: str,
+    content_type: str,
+    restrictions: Optional[ContentRestriction] = None
+) -> Dict[str, Any]:
+    """
+    Check quality criteria based on content type and optional restrictions.
+
+    Args:
+        content: Generated proposal/email text
+        content_type: Type of content (upwork_proposal, outreach_email, etc.)
+        restrictions: Optional ContentRestriction for custom validation
+
+    Returns:
+        Dict with quality checks (True = passed, False = failed)
+    """
     checks = {
         "has_specific_metrics": bool(re.search(r'\d+%', content)),
         "has_project_reference": bool(re.search(r'(project|case study|client|work)', content, re.IGNORECASE)),
@@ -837,22 +857,46 @@ def check_quality_criteria(content: str, content_type: str) -> Dict[str, Any]:
 
     word_count = len(content.split())
 
-    if content_type == "upwork_proposal":
-        checks["proper_length"] = 150 <= word_count <= 300
-    elif content_type == "outreach_email":
-        checks["proper_length"] = 100 <= word_count <= 200
+    # Check word count (use custom range if restrictions provided)
+    if restrictions:
+        min_words, max_words = get_word_count_range(content_type, restrictions)
+        checks["proper_length"] = min_words <= word_count <= max_words
+
+        # Add restriction-specific checks
+        forbidden_found = check_forbidden_phrases(content, restrictions)
+        checks["no_forbidden_phrases"] = len(forbidden_found) == 0
+
+        required_missing = check_required_elements(content, restrictions)
+        checks["has_required_elements"] = len(required_missing) == 0
+    else:
+        # Default word count ranges
+        if content_type == "upwork_proposal":
+            checks["proper_length"] = 150 <= word_count <= 300
+        elif content_type == "outreach_email":
+            checks["proper_length"] = 100 <= word_count <= 200
 
     return checks
 
 
 def calculate_quality_score(criteria_results: Dict[str, bool]) -> float:
-    """Calculate quality score from criteria results."""
+    """
+    Calculate quality score from criteria results.
+
+    Args:
+        criteria_results: Dict of check results (True = passed, False = failed)
+
+    Returns:
+        Quality score from 1.0 to 10.0
+    """
     weights = {
         "has_specific_metrics": 0.4,
         "has_project_reference": 0.3,
         "proper_length": 0.1,
         "has_call_to_action": 0.1,
-        "professional_tone": 0.1
+        "professional_tone": 0.1,
+        # Restriction checks (if present)
+        "no_forbidden_phrases": 0.3,  # Critical check
+        "has_required_elements": 0.2  # Important check
     }
 
     score = 0.0
