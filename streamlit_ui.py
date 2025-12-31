@@ -101,8 +101,23 @@ Follow the complete workflow:
 1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
    - If YES: call research_company with that company name
    - If NO: skip research_company (don't call with generic terms)
+
 2. Search for capability deck: "{deck_query}" (mode="detailed")
-3. Extract technologies and use search_relevant_projects for case studies (mode="detailed")
+
+3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
+
+   FIRST SWEEP - Targeted search:
+   - Extract specific: technologies, industry, project_type from job posting
+   - Call search_relevant_projects with these filters (mode="detailed")
+   - This gets highly relevant matches
+
+   SECOND SWEEP - Broader search:
+   - Use general job description keywords (remove filters)
+   - Call search_relevant_projects with broader query (mode="detailed")
+   - This catches any great matches that filters might have excluded
+
+   COMBINE results from both sweeps, deduplicate, pick top 2-3 best matches
+
 4. Use generate_content with all context (mention "{deck_name}" in attachment note)
 5. Use review_and_score to validate quality
 
@@ -117,8 +132,21 @@ Follow the complete workflow:
 1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
    - If YES: call research_company with that company name
    - If NO: skip research_company (don't call with generic terms)
+
 2. Search for capability deck: "{deck_query}" (mode="detailed")
-3. Extract project type and use search_relevant_projects for case studies (mode="detailed")
+
+3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
+
+   FIRST SWEEP - Targeted:
+   - Extract specific project_type, industry from brief
+   - Call search_relevant_projects with filters (mode="detailed")
+
+   SECOND SWEEP - Broader:
+   - Use general description keywords (no filters)
+   - Call search_relevant_projects with broader query (mode="detailed")
+
+   COMBINE both sweeps, deduplicate, pick top 2-3
+
 4. Use generate_content with content_type="catalant_proposal" (mention "{deck_name}" in attachment)
 5. Use review_and_score to validate quality
 
@@ -134,8 +162,14 @@ Follow the complete workflow:
 1. Check if a SPECIFIC company name is mentioned
    - If YES: call research_company with that company name
    - If NO: skip research_company
+
 2. Search for capability deck: "{deck_query}" (mode="detailed")
-3. Use search_relevant_projects to find relevant case studies (mode="detailed")
+
+3. TWO-SWEEP CASE STUDY SEARCH:
+   FIRST SWEEP - Specific to their domain
+   SECOND SWEEP - Broader relevant projects
+   COMBINE and deduplicate
+
 4. Use generate_content for outreach email
 5. Use review_and_score to validate quality
 

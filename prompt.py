@@ -27,7 +27,7 @@ Extract from the job posting:
 - Use research_company tool to gather company intelligence
 - Focus on: industry, tech stack, recent developments, business description
 
-### 3. Search Phase (MANDATORY - Run TWO searches)
+### 3. Search Phase (MANDATORY - Run THREE searches total)
 
 **Search 1: Capability Deck** (REQUIRED)
 - Determine job focus: AI/ML or Data Analytics/BI
@@ -36,16 +36,31 @@ Extract from the job posting:
 - Use mode="detailed", section="Overview" or section="Capabilities"
 - This provides our general capabilities summary
 
-**Search 2: Relevant Case Studies** (REQUIRED - Get 2-3 examples)
-- Call search_relevant_projects with mode="detailed" (CRITICAL for quality!)
-- Use industry filter if job mentions specific industry (e.g., "E-commerce")
-- Use project_type if clear (e.g., "BI_Analytics", "AI_ML", "Workflow_Automation")
-- This provides 2-3 specific project examples with metrics
+**Search 2 & 3: TWO-SWEEP Case Study Search** (REQUIRED for best matches)
 
-**CRITICAL:** Combine results from BOTH searches:
+**FIRST SWEEP - Targeted/Specific:**
+- Extract: specific technologies, industry, project_type from job
+- Call search_relevant_projects WITH filters (mode="detailed")
+- Example: tech_filter=["Snowflake", "dbt"], industry="E-commerce"
+- Gets highly relevant, specific matches
+
+**SECOND SWEEP - Broader/General:**
+- Use general job description keywords
+- Call search_relevant_projects WITHOUT filters (mode="detailed")
+- Just use general query like "analytics dashboard reporting"
+- Catches great matches that might have been excluded by filters
+
+**COMBINE & DEDUPLICATE:**
+- Merge results from both sweeps
+- Remove duplicates (same project appearing twice)
+- Pick top 2-3 best matches based on relevance scores
+- Ensures you don't miss excellent matches due to overly narrow filters
+
+**CRITICAL:** This three-search approach (1 deck + 2 case study sweeps):
 - Deck provides credibility and breadth
-- Case studies provide proof points
-- Together they create a complete picture
+- First sweep gets specific matches
+- Second sweep catches anything missed
+- Together they ensure the BEST possible case studies
 
 ### 4. Cross-Map Client Needs to Brainforge Strengths
 - Identify the client's **main business problem** and **desired outcome**
