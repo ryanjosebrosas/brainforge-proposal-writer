@@ -139,15 +139,51 @@ async def research_company(
     """
     Research target company using Brave Search API.
 
+    IMPORTANT: Only call this tool if a specific company name is mentioned in the job posting.
+    Do NOT call for generic terms or if no company is mentioned.
+
     Args:
         ctx: Context with HTTP client and Brave API key
-        company_name: Company to research
+        company_name: Company to research (must be a real company name, not generic terms)
         response_format: "concise" (top 3 sources) or "detailed" (top 10 sources)
 
     Returns:
         JSON string with CompanyResearch schema
     """
+    # Validate company_name is not empty or generic
+    if not company_name or len(company_name.strip()) < 2:
+        print(f"Skipping research_company: No company name provided")
+        return CompanyResearch(
+            company_name="Unknown",
+            industry="Unknown",
+            business_description="No company specified",
+            size_estimate="Unknown",
+            tech_stack=[],
+            recent_developments=[],
+            pain_points=[],
+            key_people=[],
+            sources=[]
+        ).model_dump_json()
+
+    # Skip generic/invalid terms that waste API calls
+    generic_terms = ['company', 'client', 'organization', 'business', 'firm', 'startup', 'technology', 'tech stack']
+    company_lower = company_name.lower().strip()
+    if company_lower in generic_terms or all(term in company_lower for term in ['the', 'a', 'an']):
+        print(f"Skipping research_company: '{company_name}' appears to be generic, not a real company")
+        return CompanyResearch(
+            company_name=company_name,
+            industry="Unknown",
+            business_description="Generic term provided instead of company name",
+            size_estimate="Unknown",
+            tech_stack=[],
+            recent_developments=[],
+            pain_points=[],
+            key_people=[],
+            sources=[]
+        ).model_dump_json()
+
     try:
+        print(f"Calling research_company for: {company_name}")
         queries = build_company_search_queries(company_name)
         max_queries = 2 if response_format == "concise" else 4
 

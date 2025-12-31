@@ -98,7 +98,9 @@ async def run_proposal_workflow(content_type, user_input, deck_type="data"):
 {user_input}
 
 Follow the complete workflow:
-1. Extract company name if mentioned, then research_company
+1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
+   - If YES: call research_company with that company name
+   - If NO: skip research_company (don't call with generic terms)
 2. Search for capability deck: "{deck_query}" (mode="detailed")
 3. Extract technologies and use search_relevant_projects for case studies (mode="detailed")
 4. Use generate_content with all context (mention "{deck_name}" in attachment note)
@@ -112,7 +114,9 @@ Return the final proposal with quality score."""
 {user_input}
 
 Follow the complete workflow:
-1. Extract company name if mentioned, then research_company
+1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
+   - If YES: call research_company with that company name
+   - If NO: skip research_company (don't call with generic terms)
 2. Search for capability deck: "{deck_query}" (mode="detailed")
 3. Extract project type and use search_relevant_projects for case studies (mode="detailed")
 4. Use generate_content with content_type="catalant_proposal" (mention "{deck_name}" in attachment)
@@ -127,7 +131,9 @@ Note: Use formal Catalant format (credentials-first, numbered projects, professi
 {user_input}
 
 Follow the complete workflow:
-1. Use research_company for the target company
+1. Check if a SPECIFIC company name is mentioned
+   - If YES: call research_company with that company name
+   - If NO: skip research_company
 2. Search for capability deck: "{deck_query}" (mode="detailed")
 3. Use search_relevant_projects to find relevant case studies (mode="detailed")
 4. Use generate_content for outreach email
