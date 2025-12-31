@@ -67,7 +67,7 @@ def get_agent_deps_cached():
     return get_agent_clients()
 
 
-async def run_proposal_workflow(content_type, user_input):
+async def run_proposal_workflow(content_type, user_input, deck_type="data"):
     """
     Run the complete proposal generation workflow.
 
@@ -87,6 +87,10 @@ async def run_proposal_workflow(content_type, user_input):
             user_preferences=user_preferences
         )
 
+        # Deck search query based on selection
+        deck_query = "AI capabilities overview" if deck_type == "ai" else "data analytics capabilities"
+        deck_name = "Brainforge AI Capabilities Deck" if deck_type == "ai" else "Brainforge Data Capabilities Deck"
+
         # Run agent with the workflow prompt
         if content_type == "upwork_proposal":
             prompt = f"""Generate an Upwork proposal for this job posting:
@@ -95,9 +99,9 @@ async def run_proposal_workflow(content_type, user_input):
 
 Follow the complete workflow:
 1. Extract company name if mentioned, then research_company
-2. Extract technologies and use search_relevant_projects
-3. Use get_project_details for top matches
-4. Use generate_content with all context
+2. Search for capability deck: "{deck_query}" (mode="detailed")
+3. Extract technologies and use search_relevant_projects for case studies (mode="detailed")
+4. Use generate_content with all context (mention "{deck_name}" in attachment note)
 5. Use review_and_score to validate quality
 
 Return the final proposal with quality score."""
@@ -109,9 +113,9 @@ Return the final proposal with quality score."""
 
 Follow the complete workflow:
 1. Extract company name if mentioned, then research_company
-2. Extract project type and use search_relevant_projects
-3. Use get_project_details for top matches
-4. Use generate_content with content_type="catalant_proposal"
+2. Search for capability deck: "{deck_query}" (mode="detailed")
+3. Extract project type and use search_relevant_projects for case studies (mode="detailed")
+4. Use generate_content with content_type="catalant_proposal" (mention "{deck_name}" in attachment)
 5. Use review_and_score to validate quality
 
 Return the final proposal with quality score.
@@ -124,8 +128,8 @@ Note: Use formal Catalant format (credentials-first, numbered projects, professi
 
 Follow the complete workflow:
 1. Use research_company for the target company
-2. Use search_relevant_projects to find relevant case studies
-3. Use get_project_details for the best match
+2. Search for capability deck: "{deck_query}" (mode="detailed")
+3. Use search_relevant_projects to find relevant case studies (mode="detailed")
 4. Use generate_content for outreach email
 5. Use review_and_score to validate quality
 
@@ -195,6 +199,15 @@ def main():
             horizontal=True
         )
 
+        # Deck selector
+        deck_type = st.radio(
+            "Capabilities Deck:",
+            options=["ai", "data"],
+            format_func=lambda x: "🤖 AI Capabilities" if x == "ai" else "📊 Data Capabilities",
+            horizontal=True,
+            help="Choose which deck to include as proof of capabilities"
+        )
+
         # Input text area
         if content_type == "upwork_proposal":
             placeholder = "Paste the Upwork job posting here...\n\nExample:\nLooking for a data analyst to build dashboards using Tableau and Snowflake for our e-commerce company..."
@@ -236,7 +249,7 @@ def main():
             with st.spinner("🔍 Researching company and finding relevant projects..."):
                 try:
                     # Run the workflow
-                    result = asyncio.run(run_proposal_workflow(content_type, user_input))
+                    result = asyncio.run(run_proposal_workflow(content_type, user_input, deck_type))
 
                     st.session_state.generated_content = result
                     st.session_state.proposals_generated += 1
