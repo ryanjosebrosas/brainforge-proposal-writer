@@ -9,7 +9,7 @@ This module defines 5 core data models for the template system:
 - TemplatePromptConfig: Combined config for prompt generation
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, List, Literal, Optional
 
 
@@ -63,7 +63,8 @@ class ContentRestriction(BaseModel):
         description="Custom word count ranges per content type"
     )
 
-    @validator('word_count_overrides')
+    @field_validator('word_count_overrides')
+    @classmethod
     def validate_word_counts(cls, v):
         """Ensure min < max for all word count overrides."""
         for content_type, range_dict in v.items():

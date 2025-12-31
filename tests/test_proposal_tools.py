@@ -278,17 +278,19 @@ class TestSearchRelevantProjects:
         mock_rpc_result.data = sample_project_data
         mock_context.deps.supabase.rpc.return_value.execute.return_value = mock_rpc_result
 
-        result_json = await search_relevant_projects(
+        result_text = await search_relevant_projects(
             mock_context,
             query="e-commerce analytics",
             max_results=5,
             mode="concise"
         )
-        result = ProjectSearchResults.model_validate_json(result_json)
 
-        assert result.total_found == 2
-        assert len(result.matches) == 2
-        assert result.search_query == "e-commerce analytics"
+        # Tool now returns formatted text (PydanticAI pattern), not JSON
+        assert isinstance(result_text, str)
+        assert "e-commerce analytics" in result_text
+        assert "Total Matches: 2" in result_text
+        # Verify project names appear in output
+        assert "ABC Home" in result_text or "Acme Analytics" in result_text
 
     @pytest.mark.asyncio
     async def test_search_relevant_projects_with_tech_filter(
@@ -305,17 +307,19 @@ class TestSearchRelevantProjects:
         mock_rpc_result.data = [sample_project_data[0]]  # Only first project matches filter
         mock_context.deps.supabase.rpc.return_value.execute.return_value = mock_rpc_result
 
-        result_json = await search_relevant_projects(
+        result_text = await search_relevant_projects(
             mock_context,
             query="analytics",
             tech_filter=["Snowflake", "Tableau"],
             max_results=5
         )
-        result = ProjectSearchResults.model_validate_json(result_json)
 
-        assert result.total_found == 1
-        assert result.matches[0].project_id == "project-001"
-        assert "tech_filter" in result.filters_applied
+        # Tool now returns formatted text (PydanticAI pattern), not JSON
+        assert isinstance(result_text, str)
+        assert "analytics" in result_text
+        assert "Total Matches: 1" in result_text
+        # Verify tech filter is mentioned
+        assert "tech_filter" in result_text or "Snowflake" in result_text or "Tableau" in result_text
 
     @pytest.mark.asyncio
     async def test_search_relevant_projects_empty_results(self, mock_context):
@@ -631,13 +635,14 @@ class TestProposalToolsIntegration:
         mock_rpc_result.data = sample_project_data
         mock_context.deps.supabase.rpc.return_value.execute.return_value = mock_rpc_result
 
-        projects_json = await search_relevant_projects(
+        projects_text = await search_relevant_projects(
             mock_context,
             query="e-commerce analytics",
             max_results=5
         )
-        projects = ProjectSearchResults.model_validate_json(projects_json)
-        assert len(projects.matches) > 0
+        # Tool now returns formatted text (PydanticAI pattern), not JSON
+        assert isinstance(projects_text, str)
+        assert "Total Matches:" in projects_text
 
         # Step 3: Generate content
         with patch('pydantic_ai.Agent') as MockAgent:
@@ -651,7 +656,7 @@ class TestProposalToolsIntegration:
                 mock_context,
                 "upwork_proposal",
                 company_json,
-                projects_json,
+                projects_text,  # Pass text instead of JSON
                 "Job posting"
             )
             content = GeneratedContent.model_validate_json(content_json)
