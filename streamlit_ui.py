@@ -100,30 +100,33 @@ async def run_proposal_workflow(content_type, user_input, deck_type="data"):
 DECK TO USE: {deck_name} (user selected - search for "{deck_query}" to get full deck content)
 
 Follow the complete workflow:
-1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
-   - If YES: call research_company with that company name
-   - If NO: skip research_company (don't call with generic terms)
+1. Check if a SPECIFIC company name OR website URL is mentioned
+   - If company URL (starts with http:// or https://): call research_company with the COMPLETE URL unchanged
+   - If company name only (like "Acme Corp" or "Amazon"): call research_company with the company name
+   - If neither: skip research_company
+   - CRITICAL: If you see a URL, DO NOT extract the company name - pass the ENTIRE URL
 
 2. FETCH SELECTED DECK CONTENT:
    - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
    - This gets the full {deck_name} content from Supabase
    - Use this content to show Brainforge's capabilities
 
-3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
+3. TWO-SWEEP CASE STUDY SEARCH (YOU MUST DO BOTH SWEEPS):
 
    VALID PROJECT TYPES: BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML
 
-   FIRST SWEEP - Targeted search:
-   - Extract specific: technologies, industry from job posting
-   - Pick project_type from VALID list above (e.g., BI_Analytics or Data_Engineering)
-   - Call search_relevant_projects(query="...", tech_filter=[...], industry="...", project_type="BI_Analytics", mode="detailed")
-   - This gets highly relevant matches
+   SWEEP #1 - Targeted with filters (REQUIRED):
+   - **If you called research_company:** Parse the CompanyResearch JSON from step 1
+   - Extract: industry field (e.g., "Healthcare", "E-commerce", "SaaS")
+   - Extract keywords from business_description and pain_points
+   - Pick project_type from VALID list (e.g., BI_Analytics or Data_Engineering)
+   - Call search_relevant_projects(query="[keywords from company]", industry="Healthcare", project_type="BI_Analytics", mode="detailed")
+   - CRITICAL: You MUST pass industry parameter from CompanyResearch if available
 
-   SECOND SWEEP - Broader search:
+   SWEEP #2 - Broader search (REQUIRED):
    - Use general job description keywords
-   - CRITICAL: Do NOT pass tech_filter, industry, or project_type parameters
-   - Call search_relevant_projects(query="analytics data", mode="detailed")
-   - This catches any great matches that filters might have excluded
+   - Call search_relevant_projects(query="analytics dashboards", mode="detailed")
+   - CRITICAL: NO industry, NO project_type parameters
 
    COMBINE results from both sweeps, deduplicate, pick top 2-3 best matches
 
@@ -140,9 +143,11 @@ Return the final proposal with quality score."""
 DECK TO USE: {deck_name} (user selected - search for "{deck_query}" to get full deck content)
 
 Follow the complete workflow:
-1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
-   - If YES: call research_company with that company name
-   - If NO: skip research_company (don't call with generic terms)
+1. Check if a SPECIFIC company name OR website URL is mentioned
+   - If company URL (starts with http:// or https://): call research_company with the COMPLETE URL unchanged
+   - If company name only (like "Acme Corp" or "Amazon"): call research_company with the company name
+   - If neither: skip research_company
+   - CRITICAL: If you see a URL, DO NOT extract the company name - pass the ENTIRE URL
 
 2. FETCH SELECTED DECK CONTENT:
    - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
@@ -152,15 +157,18 @@ Follow the complete workflow:
 
    VALID PROJECT TYPES: BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML
 
-   FIRST SWEEP - Targeted:
-   - Extract specific industry from brief
-   - Pick project_type from VALID list above (e.g., BI_Analytics or Data_Engineering)
-   - Call search_relevant_projects(query="...", industry="...", project_type="BI_Analytics", mode="detailed")
+   SWEEP #1 - Targeted with filters (REQUIRED):
+   - **If you called research_company:** Parse CompanyResearch JSON from step 1
+   - Extract: industry field (e.g., "Healthcare", "E-commerce")
+   - Extract keywords from business_description
+   - Pick project_type from VALID list (e.g., BI_Analytics or Data_Engineering)
+   - Call search_relevant_projects(query="[context from company]", industry="Healthcare", project_type="BI_Analytics", mode="detailed")
+   - CRITICAL: You MUST pass industry parameter from CompanyResearch if available
 
-   SECOND SWEEP - Broader:
+   SWEEP #2 - Broader (REQUIRED):
    - Use general description keywords
-   - CRITICAL: Do NOT pass industry or project_type parameters
    - Call search_relevant_projects(query="analytics consulting", mode="detailed")
+   - CRITICAL: NO industry or project_type parameters
 
    COMBINE both sweeps, deduplicate, pick top 2-3
 
@@ -178,19 +186,30 @@ Note: Use formal Catalant format (credentials-first, numbered projects, professi
 DECK TO USE: {deck_name} (user selected - search for "{deck_query}" to get content)
 
 Follow the complete workflow:
-1. Check if a SPECIFIC company name is mentioned
-   - If YES: call research_company with that company name
-   - If NO: skip research_company
+1. Check if a SPECIFIC company name OR website URL is mentioned
+   - If company URL (starts with http:// or https://): call research_company with the COMPLETE URL unchanged
+   - If company name only: call research_company with the company name
+   - If neither: skip research_company
+   - CRITICAL: If you see a URL, DO NOT extract the company name - pass the ENTIRE URL
 
 2. FETCH SELECTED DECK CONTENT:
    - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
 
-3. TWO-SWEEP CASE STUDY SEARCH:
+3. TWO-SWEEP CASE STUDY SEARCH (YOU MUST DO BOTH SWEEPS):
    VALID PROJECT TYPES: BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML
 
-   FIRST SWEEP - Specific to their domain (with filters)
-   SECOND SWEEP - Broader (NO filters, just query)
-   COMBINE and deduplicate
+   SWEEP #1 - Targeted with filters (REQUIRED):
+   - Parse the CompanyResearch JSON you received in step 1
+   - Extract: industry field (e.g., "Healthcare", "E-commerce")
+   - Create query from their business_description or pain_points
+   - Call search_relevant_projects(query="healthcare analytics", industry="Healthcare", project_type="BI_Analytics", mode="detailed")
+   - CRITICAL: You MUST pass industry parameter from CompanyResearch
+
+   SWEEP #2 - Broader no filters (REQUIRED):
+   - Call search_relevant_projects(query="data analytics", mode="detailed")
+   - NO industry, NO project_type parameters
+
+   COMBINE both results, deduplicate
 
 4. Use generate_content with deck content + case studies
 5. Use review_and_score to validate quality

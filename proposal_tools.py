@@ -16,6 +16,9 @@ from pydantic_ai import RunContext
 from httpx import AsyncClient
 from supabase import Client
 from openai import AsyncOpenAI
+from urllib.parse import urlparse, urljoin
+from bs4 import BeautifulSoup
+import asyncio
 import re
 import json
 
@@ -30,6 +33,383 @@ from restriction_validator import (
 )
 from template_schemas import ContentRestriction
 from tools import get_embedding
+
+
+# ========== Web Scraping Helpers ==========
+
+def is_valid_url(text: str) -> bool:
+    """
+    Check if text is a valid HTTP/HTTPS URL.
+
+    Args:
+        text: Input string to validate
+
+    Returns:
+        True if valid URL, False otherwise
+    """
+    url_pattern = re.compile(
+        r'^https?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain
+        r'localhost|'  # localhost
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return url_pattern.match(text) is not None
+
+
+def normalize_company_url(url: str) -> str:
+    """
+    Normalize company URL (add scheme, remove fragments).
+
+    Args:
+        url: Raw URL string (may be missing scheme)
+
+    Returns:
+        Normalized URL with https:// scheme
+
+    Example:
+        normalize_company_url("example.com") -> "https://example.com"
+        normalize_company_url("http://example.com/about") -> "https://example.com/about"
+    """
+    url = url.strip()
+
+    # Add https:// if no scheme
+    if not url.startswith(('http://', 'https://')):
+        url = f'https://{url}'
+
+    # Force https for security
+    url = url.replace('http://', 'https://')
+
+    # Remove trailing slash for consistency (except for root path)
+    parsed = urlparse(url)
+    if url.endswith('/') and parsed.path != '/':
+        url = url.rstrip('/')
+
+    return url
+
+
+async def fetch_page_content(
+    url: str,
+    http_client: AsyncClient,
+    timeout: float = 10.0
+) -> Optional[str]:
+    """
+    Fetch full HTML content from a web page.
+
+    Args:
+        url: Full URL to fetch
+        http_client: Async HTTP client from context
+        timeout: Request timeout in seconds (default 10s)
+
+    Returns:
+        HTML content as string, or None if fetch failed
+    """
+    try:
+        print(f"[FETCH] Fetching page: {url}")
+        response = await http_client.get(
+            url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (compatible; BrainforgeBot/1.0)',
+                'Accept': 'text/html,application/xhtml+xml',
+            },
+            timeout=timeout,
+            follow_redirects=True
+        )
+        response.raise_for_status()
+
+        # Only return if content is HTML
+        content_type = response.headers.get('content-type', '')
+        if 'text/html' in content_type.lower():
+            return response.text
+        else:
+            print(f"[FETCH] Skipping non-HTML content: {content_type}")
+            return None
+
+    except Exception as e:
+        print(f"[FETCH] Error fetching {url}: {e}")
+        return None
+
+
+def parse_html_for_company_info(html: str, company_name: str) -> dict:
+    """
+    Extract company information from HTML content.
+
+    Args:
+        html: Raw HTML string
+        company_name: Company name for context
+
+    Returns:
+        Dict with extracted fields: description, tech_stack, services, pain_points, industry
+    """
+    try:
+        soup = BeautifulSoup(html, 'html5lib')
+
+        # Remove script and style tags
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
+            tag.decompose()
+
+        # Extract description (meta description or first paragraph)
+        description = ""
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        if meta_desc and meta_desc.get('content'):
+            description = meta_desc.get('content', '')[:300]
+        else:
+            # Find first substantial paragraph
+            paragraphs = soup.find_all('p')
+            for p in paragraphs:
+                text = p.get_text(strip=True)
+                if len(text) > 100:
+                    description = text[:300]
+                    break
+
+        # Get all text content including meta description for tech detection
+        full_text = soup.get_text(separator=' ', strip=True).lower()
+        if meta_desc:
+            full_text = full_text + " " + meta_desc.get('content', '').lower()
+
+        # Detect industry from page content
+        industry = "Unknown"
+        if any(keyword in full_text for keyword in ["healthcare", "health", "medical", "patient", "clinic", "hospital", "telehealth", "pharmacy"]):
+            industry = "Healthcare"
+        elif any(keyword in full_text for keyword in ["ecommerce", "e-commerce", "retail", "shop", "store", "marketplace"]):
+            industry = "E-commerce"
+        elif any(keyword in full_text for keyword in ["saas", "software as a service", "cloud platform", "api", "developer"]):
+            industry = "SaaS"
+        elif any(keyword in full_text for keyword in ["finance", "financial", "banking", "fintech", "payment", "trading"]):
+            industry = "Finance"
+        elif any(keyword in full_text for keyword in ["education", "learning", "university", "school", "training", "course"]):
+            industry = "Education"
+        elif any(keyword in full_text for keyword in ["manufacturing", "factory", "production", "supply chain"]):
+            industry = "Manufacturing"
+
+        # Extract tech stack mentions
+        tech_keywords = [
+            'python', 'javascript', 'react', 'vue', 'angular', 'node',
+            'aws', 'azure', 'gcp', 'google cloud',
+            'postgresql', 'mysql', 'mongodb', 'redis',
+            'docker', 'kubernetes', 'terraform',
+            'snowflake', 'dbt', 'tableau', 'power bi',
+            'salesforce', 'hubspot', 'zapier', 'n8n'
+        ]
+        tech_stack = []
+        for tech in tech_keywords:
+            if tech in full_text:
+                tech_stack.append(tech.title())
+
+        # Extract services (look for "services" or "solutions" sections)
+        services = []
+        service_indicators = ['services', 'solutions', 'products', 'offerings']
+        for indicator in service_indicators:
+            section = soup.find(['h2', 'h3'], string=re.compile(indicator, re.I))
+            if section:
+                # Get following list or paragraph
+                next_elem = section.find_next(['ul', 'ol', 'p'])
+                if next_elem:
+                    services.append(next_elem.get_text(strip=True)[:200])
+
+        # Extract pain points (look for "challenges" or "problems" sections)
+        pain_points = []
+        pain_indicators = ['challenge', 'problem', 'pain', 'difficulty', 'struggle']
+        for indicator in pain_indicators:
+            if indicator in full_text:
+                # Simple heuristic: if mentioned, it's a potential pain point
+                pain_points.append(f"Mentions {indicator} in content")
+
+        return {
+            'description': description,
+            'industry': industry,  # NEW: Industry detected from page content
+            'tech_stack': list(set(tech_stack))[:10],  # Unique, max 10
+            'services': services[:3],  # Max 3 service descriptions
+            'pain_points': pain_points[:3]  # Max 3 pain points
+        }
+
+    except Exception as e:
+        print(f"[PARSE] Error parsing HTML: {e}")
+        return {
+            'description': '',
+            'industry': 'Unknown',
+            'tech_stack': [],
+            'services': [],
+            'pain_points': []
+        }
+
+
+async def fetch_multiple_pages(
+    base_url: str,
+    http_client: AsyncClient
+) -> List[dict]:
+    """
+    Fetch multiple relevant pages from a company website in parallel.
+
+    Args:
+        base_url: Base company URL (e.g., https://example.com)
+        http_client: Async HTTP client
+
+    Returns:
+        List of dicts with 'url', 'html', 'parsed_info' keys
+    """
+    # Common page paths to check
+    page_paths = ['/', '/about', '/about-us', '/company', '/products', '/services', '/solutions', '/technology', '/team']
+
+    # Build full URLs
+    urls_to_fetch = []
+    parsed_url = urlparse(base_url)
+    base_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    for path in page_paths:
+        full_url = urljoin(base_domain, path)
+        urls_to_fetch.append(full_url)
+
+    # Fetch all pages in parallel (max 5 to avoid overwhelming server)
+    print(f"[FETCH] Fetching {len(urls_to_fetch[:5])} pages from {base_domain}")
+    fetch_tasks = [fetch_page_content(url, http_client) for url in urls_to_fetch[:5]]
+    results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+    # Process successful fetches
+    page_data = []
+    for url, html in zip(urls_to_fetch[:5], results):
+        if html and isinstance(html, str):
+            parsed_info = parse_html_for_company_info(html, base_domain)
+            page_data.append({
+                'url': url,
+                'html': html[:5000],  # Keep first 5000 chars for debugging
+                'parsed_info': parsed_info
+            })
+
+    print(f"[FETCH] Successfully fetched {len(page_data)} pages")
+    return page_data
+
+
+def merge_page_data(page_data: List[dict], company_name: str) -> dict:
+    """
+    Merge parsed information from multiple pages.
+
+    Args:
+        page_data: List of page fetch results with 'parsed_info' key
+        company_name: Extracted company name
+
+    Returns:
+        Merged dict with combined info from all pages
+    """
+    all_tech = []
+    all_services = []
+    all_pain_points = []
+    industries_found = []
+    best_description = ""
+
+    for page in page_data:
+        info = page.get('parsed_info', {})
+
+        # Collect tech stack
+        all_tech.extend(info.get('tech_stack', []))
+
+        # Collect services
+        all_services.extend(info.get('services', []))
+
+        # Collect pain points
+        all_pain_points.extend(info.get('pain_points', []))
+
+        # Collect industries (prioritize non-Unknown)
+        industry = info.get('industry', 'Unknown')
+        if industry != 'Unknown':
+            industries_found.append(industry)
+
+        # Pick longest description
+        desc = info.get('description', '')
+        if len(desc) > len(best_description):
+            best_description = desc
+
+    # Pick most common industry (or first if tie)
+    detected_industry = "Unknown"
+    if industries_found:
+        from collections import Counter
+        industry_counts = Counter(industries_found)
+        detected_industry = industry_counts.most_common(1)[0][0]
+        print(f"[PARSE] Detected industry: {detected_industry} (from {len(industries_found)} pages)")
+
+    return {
+        'company_name': company_name,
+        'description': best_description,
+        'industry': detected_industry,  # NEW: Detected from page content
+        'tech_stack': list(set(all_tech))[:10],  # Unique, max 10
+        'services': all_services[:5],
+        'pain_points': list(set(all_pain_points))[:5],
+        'sources': [page['url'] for page in page_data]
+    }
+
+
+def combine_web_and_brave_data(
+    web_info: dict,
+    brave_results: List[dict],
+    company_name: str,
+    base_url: str
+) -> CompanyResearch:
+    """
+    Combine web-scraped content with Brave search results.
+
+    Args:
+        web_info: Merged data from fetch_multiple_pages
+        brave_results: Brave API responses
+        company_name: Company name
+        base_url: Company website URL
+
+    Returns:
+        CompanyResearch model with combined data
+    """
+    # Start with web-scraped data
+    tech_stack = web_info.get('tech_stack', [])
+    description = web_info.get('description', '')
+    sources = web_info.get('sources', [])
+
+    # PRIORITY: Use web-scraped industry first (more accurate than Brave)
+    industry = web_info.get('industry', 'Unknown')
+    print(f"[COMBINE] Using industry from web scraping: {industry}")
+
+    recent_developments = []
+
+    # Add insights from Brave (only if available)
+    for result in brave_results:
+        web_results = result.get('web', {}).get('results', [])
+        for item in web_results[:3]:
+            title = item.get('title', '')
+            desc = item.get('description', '')
+            url = item.get('url', '')
+            sources.append(url)
+
+            full_text = f"{title} {desc}".lower()
+
+            # Only use Brave for industry if web scraping didn't find one
+            if industry == "Unknown":
+                if any(ind in full_text for ind in ["saas", "software", "cloud"]):
+                    industry = "SaaS"
+                elif any(ind in full_text for ind in ["ecommerce", "e-commerce", "retail"]):
+                    industry = "E-commerce"
+                elif any(ind in full_text for ind in ["healthcare", "health", "medical"]):
+                    industry = "Healthcare"
+
+            # Recent developments
+            if any(word in full_text for word in ["funding", "raised", "series", "launched"]):
+                recent_developments.append(desc[:150])
+
+    # Estimate company size (from web content or Brave)
+    size_estimate = "SMB"
+    combined_text = description.lower() + " ".join([s.lower() for s in web_info.get('services', [])])
+    if "enterprise" in combined_text or "1000+" in combined_text:
+        size_estimate = "enterprise"
+    elif "startup" in combined_text or "founded 20" in combined_text:
+        size_estimate = "startup"
+
+    return CompanyResearch(
+        company_name=company_name,
+        industry=industry if industry != "Unknown" else "Technology",
+        business_description=description or f"{company_name} - {industry} company",
+        size_estimate=size_estimate,
+        tech_stack=tech_stack[:10],
+        recent_developments=recent_developments[:3],
+        pain_points=web_info.get('pain_points', [])[:3],
+        key_people=[],  # Web scraping doesn't reliably get this
+        sources=sources[:10]
+    )
 
 
 # ========== Tool 1: Company Research ==========
@@ -137,15 +517,14 @@ async def research_company(
     response_format: Literal["concise", "detailed"] = "concise"
 ) -> str:
     """
-    Research target company using Brave Search API.
+    Research target company using Brave Search OR direct website fetch.
 
-    IMPORTANT: Only call this tool if a specific company name is mentioned in the job posting.
-    Do NOT call for generic terms or if no company is mentioned.
+    **NEW:** Accepts company URLs (https://example.com) to fetch full website content.
 
     Args:
         ctx: Context with HTTP client and Brave API key
-        company_name: Company to research (must be a real company name, not generic terms)
-        response_format: "concise" (top 3 sources) or "detailed" (top 10 sources)
+        company_name: Company name OR company website URL
+        response_format: "concise" (top 3 sources) or "detailed" (comprehensive fetch)
 
     Returns:
         JSON string with CompanyResearch schema
@@ -182,23 +561,68 @@ async def research_company(
             sources=[]
         ).model_dump_json()
 
+    # NEW: Detect if input is a URL
+    is_url = is_valid_url(company_name)
+
     try:
-        print(f"Calling research_company for: {company_name}")
-        queries = build_company_search_queries(company_name)
-        max_queries = 2 if response_format == "concise" else 4
+        print(f"[RESEARCH] Input: {company_name} (URL: {is_url})")
 
-        results = []
-        for query in queries[:max_queries]:
-            search_result = await execute_brave_search(query, ctx.deps.http_client, ctx.deps.brave_api_key)
-            results.append(search_result)
+        # Branch: URL path or Brave search path
+        if is_url:
+            # NEW PATH: Fetch website content
+            base_url = normalize_company_url(company_name)
+            company_name_extracted = urlparse(base_url).netloc.replace('www.', '').split('.')[0].title()
 
-        company_research = parse_brave_results_to_company_research(results, company_name)
-        return company_research.model_dump_json()
+            # Fetch multiple pages
+            page_data = await fetch_multiple_pages(base_url, ctx.deps.http_client)
+
+            # If no pages fetched, fall back to Brave search
+            if not page_data:
+                print(f"[RESEARCH] No pages fetched for {base_url}, falling back to Brave search")
+                queries = build_company_search_queries(company_name_extracted)
+                results = []
+                for query in queries[:2]:
+                    search_result = await execute_brave_search(query, ctx.deps.http_client, ctx.deps.brave_api_key)
+                    results.append(search_result)
+                company_research = parse_brave_results_to_company_research(results, company_name_extracted)
+                return company_research.model_dump_json()
+
+            # Merge info from all pages
+            merged_info = merge_page_data(page_data, company_name_extracted)
+
+            # Try to get Brave results for additional context (optional - graceful degradation)
+            brave_results = []
+            try:
+                queries = build_company_search_queries(company_name_extracted)
+                for query in queries[:1]:  # Just 1 query for URL path
+                    search_result = await execute_brave_search(query, ctx.deps.http_client, ctx.deps.brave_api_key)
+                    brave_results.append(search_result)
+            except Exception as e:
+                print(f"[RESEARCH] Brave API unavailable (skipping): {e}")
+                # Continue without Brave - web scraping data is sufficient
+
+            # Combine web content + Brave results (or just web content if Brave failed)
+            company_research = combine_web_and_brave_data(merged_info, brave_results, company_name_extracted, base_url)
+            return company_research.model_dump_json()
+
+        else:
+            # EXISTING PATH: Brave search only
+            print(f"Calling research_company for: {company_name}")
+            queries = build_company_search_queries(company_name)
+            max_queries = 2 if response_format == "concise" else 4
+
+            results = []
+            for query in queries[:max_queries]:
+                search_result = await execute_brave_search(query, ctx.deps.http_client, ctx.deps.brave_api_key)
+                results.append(search_result)
+
+            company_research = parse_brave_results_to_company_research(results, company_name)
+            return company_research.model_dump_json()
 
     except Exception as e:
         print(f"Error in research_company: {e}")
         fallback = CompanyResearch(
-            company_name=company_name,
+            company_name=company_name if not is_url else urlparse(company_name).netloc,
             industry="Unknown",
             business_description=f"Unable to research {company_name} at this time.",
             size_estimate="SMB",
@@ -225,47 +649,111 @@ def build_enriched_project_match(search_doc: dict, full_study: dict, file_id: st
     Returns:
         ProjectMatch with complete context and all metrics
     """
-    frontmatter = full_study.get('frontmatter', {}) or {}
-    chunks = full_study.get('chunks', []) or []
-    metrics = full_study.get('metrics', []) or []
+    # Get data from ALL 3 connected tables: documents, documents_metadata, document_row
+    frontmatter = full_study.get('frontmatter', {}) or full_study.get('documents_metadata', {}) or {}
+    chunks = full_study.get('chunks', []) or full_study.get('documents', []) or []
+    rows = full_study.get('document_row', []) or full_study.get('rows', []) or []
 
-    # Extract ALL metrics from chunks and metrics table
+    # Debug: log what we got from all 3 tables
+    print(f"[SUPABASE] Retrieved from 3 tables - documents_metadata: {bool(frontmatter)}, documents: {len(chunks)}, document_row: {len(rows)}")
+    if not frontmatter and not chunks and not rows:
+        print(f"[SUPABASE] WARNING: No data from any table! Keys available: {list(full_study.keys())}")
+
+    # Debug: Show what's actually IN the chunks
+    if chunks:
+        first_chunk = chunks[0]
+        print(f"[DEBUG] First chunk keys: {list(first_chunk.keys()) if isinstance(first_chunk, dict) else 'not a dict'}")
+        if isinstance(first_chunk, dict):
+            content = first_chunk.get('content', '')
+            print(f"[DEBUG] First chunk content length: {len(content)} chars")
+            print(f"[DEBUG] First chunk content preview: {content[:200]}")
+
+    # PRIORITY: Use STRUCTURED data from all connected tables
     all_metrics = []
 
-    # Get metrics from document_rows table
-    if metrics:
-        for metric in metrics:
+    # Get structured metrics from frontmatter (BEST source)
+    frontmatter_metrics = frontmatter.get('key_metrics', [])
+    if frontmatter_metrics and isinstance(frontmatter_metrics, list):
+        for metric in frontmatter_metrics:
             if isinstance(metric, dict):
                 value = metric.get('value', '')
                 unit = metric.get('unit', '')
-                metric_str = f"{value}{unit}" if unit else str(value)
+                metric_type = metric.get('type', '').replace('_', ' ')
+
+                # Format: "88% dashboard reduction" or "741 dashboards eliminated"
+                if unit == 'percent':
+                    metric_str = f"{value}% {metric_type}"
+                elif unit:
+                    metric_str = f"{value} {unit} {metric_type}"
+                else:
+                    metric_str = f"{value} {metric_type}"
+
                 all_metrics.append(metric_str)
+        print(f"[PARSE] Found {len(all_metrics)} structured metrics from frontmatter")
 
-    # Get metrics from content text (Results section)
-    results_chunks = [c for c in chunks if c.get('section', '').lower() == 'results']
-    for chunk in results_chunks:
-        content = chunk.get('content', '')
-        found = re.findall(
-            r'(\d+(?:\.\d+)?%?\s*(?:reduction|improvement|increase|faster|savings?|saved|\$\d+[KM]?|weeks?|months?|x\s*faster))',
-            content,
-            re.IGNORECASE
-        )
-        all_metrics.extend(found[:3])
+    # Fallback: Get metrics from document_rows table if no frontmatter metrics
+    if not all_metrics:
+        metrics = full_study.get('metrics', []) or []
+        if metrics:
+            for metric in metrics:
+                if isinstance(metric, dict):
+                    value = metric.get('value', '')
+                    unit = metric.get('unit', '')
+                    metric_str = f"{value}{unit}" if unit else str(value)
+                    all_metrics.append(metric_str)
 
-    # Build rich summary with ALL sections
+    # Last resort: Parse from text (least accurate)
+    if not all_metrics:
+        results_chunks = [c for c in chunks if c.get('section', '').lower() == 'results']
+        for chunk in results_chunks:
+            content = chunk.get('content', '')
+            found = re.findall(
+                r'(\d+(?:\.\d+)?%?\s*(?:reduction|improvement|increase|faster|savings?|saved|\$\d+[KM]?|weeks?|months?|x\s*faster))',
+                content,
+                re.IGNORECASE
+            )
+            all_metrics.extend(found[:3])
+
+    # Build rich summary with data from ALL 3 TABLES
     summary_parts = []
-    for section_name in ['challenge', 'solution', 'results']:
+
+    # 1. DOCUMENTS_METADATA table: frontmatter
+    client = frontmatter.get('client', 'Unknown Client')
+    summary_parts.append(f"**Client**: {client}")
+    summary_parts.append(f"**Industry**: {frontmatter.get('industry', 'Unknown')}")
+    summary_parts.append(f"**Project Type**: {frontmatter.get('project_type', 'Unknown')}")
+    summary_parts.append(f"**Tech Stack**: {', '.join(frontmatter.get('tech_stack', []))}")
+
+    # 2. DOCUMENT_ROW table: structured row data (if available)
+    if rows:
+        summary_parts.append(f"**Structured Data**: {len(rows)} rows available")
+        # Include row data in summary
+        for i, row in enumerate(rows[:5]):  # Show first 5 rows
+            if isinstance(row, dict):
+                row_text = ", ".join([f"{k}: {v}" for k, v in row.items() if k and v])
+                if row_text:
+                    summary_parts.append(f"  - Row {i+1}: {row_text}")
+
+    # Add ALL metrics prominently
+    if all_metrics:
+        metrics_str = ", ".join(list(dict.fromkeys(all_metrics))[:8])  # Up to 8 unique metrics
+        summary_parts.append(f"**Key Metrics**: {metrics_str}")
+
+    summary_parts.append("")  # Blank line
+
+    # 3. DOCUMENTS: Complete content from all chunks (NO truncation!)
+    # Get unique sections from chunks
+    all_sections = list(dict.fromkeys([c.get('section', '').lower() for c in chunks if c.get('section')]))
+
+    for section_name in all_sections:
         section_chunks = [c for c in chunks if c.get('section', '').lower() == section_name]
         if section_chunks:
-            section_text = " ".join([c.get('content', '')[:200] for c in section_chunks[:2]])
+            # Get ALL chunks for this section, join with space, FULL CONTENT (no limits)
+            section_text = " ".join([c.get('content', '') for c in section_chunks])
             summary_parts.append(f"**{section_name.title()}**: {section_text}")
+            print(f"[PARSE] Section '{section_name}': {len(section_text)} chars, {len(section_chunks)} chunks")
 
-    rich_summary = "\n".join(summary_parts)
-
-    # Add metrics at the top
-    if all_metrics:
-        metrics_str = ", ".join(list(dict.fromkeys(all_metrics))[:5])  # Unique, top 5
-        rich_summary = f"**Key Metrics**: {metrics_str}\n\n{rich_summary}"
+    rich_summary = "\n\n".join(summary_parts)
 
     return ProjectMatch(
         project_id=file_id,  # Use the original file_id from search (full path)
@@ -698,6 +1186,7 @@ REQUIREMENTS:
 - No generic language - use specific technologies and outcomes
 - Maximum {word_count}
 - NO semicolons or exclamation points
+- **At the very end, add**: "---\nReferenced Case Studies:\n- [Project ID 1]\n- [Project ID 2]"
 """
 
     elif content_type == "catalant_proposal":
@@ -749,6 +1238,7 @@ REQUIREMENTS:
 - More formal than Upwork (credentials-first, no next steps)
 - Length: {word_count}
 - NO semicolons or exclamation points
+- **At the very end, add**: "---\nReferenced Case Studies:\n- [Project ID 1]\n- [Project ID 2]"
 """
 
     elif content_type == "outreach_email":
@@ -766,16 +1256,25 @@ Context: {user_context}
 
 """
 
-        prompt += f"""Relevant Case Studies:
+        prompt += f"""Relevant Content (Deck + Case Studies):
 
 {relevant_projects_text}
 
 Requirements:
 - Personalized opening referencing their business
-- 1-2 relevant case study examples with metrics
-- Value proposition
+- **2 specific CLIENT PROJECT case studies** with PROJECT NAMES and metrics (e.g., "ABC Home Analytics Dashboard - reduced errors by 90%", "Amazon Reporting - $1.2M saved")
+- Value proposition aligned to their needs
+- **Deck attachment note**: "Attached: [Brainforge AI/Data Capabilities Deck] showing how we deliver [specific results]"
 - Soft call-to-action (meeting request)
 - {word_count} words
+- **At the very end, add a "Referenced Case Studies:" section** listing the 2 case study PROJECT IDs you used (from the content above)
+
+CRITICAL INSTRUCTIONS:
+1. **DO NOT use deck/capabilities content as case study examples** - Items with "Capabilities", "Overview", "Deck" in the name are NOT case studies
+2. **ONLY use actual client projects** as case study examples (e.g., "ABC Home", "Amazon", "StackBlitz", "Eden")
+3. Reference 2 DIFFERENT client projects with specific metrics
+4. The deck is ONLY mentioned in the attachment line, NEVER as a project example
+5. **At the bottom**, add: "---\nReferenced Case Studies:\n- [Project ID 1]\n- [Project ID 2]"
 """
 
     else:

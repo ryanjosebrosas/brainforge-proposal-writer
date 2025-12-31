@@ -222,25 +222,35 @@ async def research_company(
     response_format: Literal["concise", "detailed"] = "concise"
 ) -> str:
     """
-    Research target company using Brave Search API to gather intelligence.
+    Research target company using Brave Search OR direct website fetching.
 
-    Use this when you have a company name to research their industry, tech stack,
-    recent news, and business context. This provides personalization for proposals.
+    **CRITICAL:** If the user provides a URL (starts with http:// or https://), you MUST pass
+    the COMPLETE URL to this function WITHOUT extracting the company name. The function needs
+    the full URL to fetch website content.
+
+    **NEW:** Now accepts company website URLs (e.g., "https://example.com") to fetch
+    full website content (home, about, products pages) for 10x richer context than search alone.
 
     Args:
         ctx: Context with HTTP client and Brave API key
-        company_name: Name of the company to research (e.g., "Acme Corp")
-        response_format: "concise" (top 3 sources, faster) or "detailed" (top 10 sources, comprehensive)
+        company_name: Company name (e.g., "Acme Corp") OR COMPLETE website URL (e.g., "https://www.tryeden.com/")
+        response_format: "concise" (search only) or "detailed" (fetch full website if URL provided)
 
     Returns:
-        JSON string with CompanyResearch schema containing:
-        - company_name, industry, business_description
-        - size_estimate (startup/SMB/enterprise)
-        - tech_stack, recent_developments, pain_points
-        - sources (URLs)
+        JSON string with CompanyResearch schema
 
-    Example:
-        Use when job posting mentions a company: "Looking for help with our Shopify store at Acme Corp"
+    **CORRECT Usage Examples:**
+        # User says "Research Eden" → Use company name
+        research_company(ctx, "Eden", "concise")
+
+        # User says "Research https://www.tryeden.com/" → Pass COMPLETE URL
+        research_company(ctx, "https://www.tryeden.com/", "detailed")
+
+    **WRONG - DO NOT DO THIS:**
+        # User says "Research https://www.tryeden.com/"
+        research_company(ctx, "Eden", "concise")  # ❌ WRONG - URL was stripped!
+
+    **Rule:** If user input contains "http://" or "https://", pass the ENTIRE string unchanged.
     """
     print(f"Calling research_company tool for: {company_name}")
     return await research_company_tool(ctx, company_name, response_format)

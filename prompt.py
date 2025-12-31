@@ -24,8 +24,11 @@ Extract from the job posting:
 - Technologies/tools mentioned
 
 ### 2. Research Phase (if company mentioned)
-- Use research_company tool to gather company intelligence
-- Focus on: industry, tech stack, recent developments, business description
+- **CRITICAL:** If user provides a URL (http:// or https://), pass it EXACTLY as-is to research_company
+- If user provides a company name, pass the name to research_company
+- **DO NOT extract company name from URL** - the tool needs the full URL to fetch website content
+- This returns CompanyResearch with: industry, tech_stack, business_description, pain_points
+- **IMPORTANT:** Save this data - you'll use it in Step 3 to filter case studies
 
 ### 3. Search Phase (MANDATORY - THREE searches total)
 
@@ -39,10 +42,13 @@ Extract from the job posting:
 **Search 2 & 3: TWO-SWEEP Case Study Search** (REQUIRED for best matches)
 
 **FIRST SWEEP - Targeted/Specific:**
-- Extract: specific technologies, industry from job
+- **If you have CompanyResearch data:** Use the industry field from CompanyResearch (e.g., "Healthcare", "E-commerce")
+- **Otherwise:** Extract industry from job posting
+- Extract business context from CompanyResearch.business_description and pain_points
 - Pick project_type from VALID list (BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML)
+- Create search query based on their business_description and pain_points
 - Call search_relevant_projects WITH filters (mode="detailed")
-- Example: search_relevant_projects(query="...", tech_filter=["Snowflake"], industry="E-commerce", project_type="BI_Analytics")
+- Example: search_relevant_projects(query="healthcare data analytics reporting", industry="Healthcare", project_type="BI_Analytics")
 - Gets highly relevant, specific matches
 
 **SECOND SWEEP - Broader/General:**

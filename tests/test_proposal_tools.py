@@ -670,3 +670,140 @@ class TestProposalToolsIntegration:
         )
         review = ContentReview.model_validate_json(review_json)
         assert 1.0 <= review.quality_score <= 10.0
+
+
+# ========== Test Web Scraping Helpers ==========
+
+@pytest.fixture
+def sample_html():
+    """Sample HTML for parsing tests."""
+    return """
+    <html>
+    <head>
+        <meta name="description" content="Acme Corp provides SaaS solutions using Python and React">
+    </head>
+    <body>
+        <h1>About Us</h1>
+        <p>We are a leading e-commerce platform built on AWS and PostgreSQL.</p>
+        <h2>Our Services</h2>
+        <ul>
+            <li>Data analytics with Snowflake</li>
+            <li>Custom dashboards using Tableau</li>
+        </ul>
+        <h2>Challenges We Solve</h2>
+        <p>Companies struggle with data integration and reporting bottlenecks.</p>
+    </body>
+    </html>
+    """
+
+
+def test_is_valid_url():
+    """Test URL validation."""
+    from proposal_tools import is_valid_url
+
+    assert is_valid_url("https://example.com") == True
+    assert is_valid_url("http://example.com/about") == True
+    assert is_valid_url("example.com") == False  # Missing scheme
+    assert is_valid_url("not a url") == False
+    assert is_valid_url("ftp://example.com") == False  # Wrong scheme
+
+
+def test_normalize_company_url():
+    """Test URL normalization."""
+    from proposal_tools import normalize_company_url
+
+    assert normalize_company_url("example.com") == "https://example.com"
+    assert normalize_company_url("http://example.com") == "https://example.com"
+    # Root path keeps trailing slash
+    assert normalize_company_url("https://example.com/") == "https://example.com/"
+    # Non-root paths remove trailing slash
+    assert normalize_company_url("https://example.com/about/") == "https://example.com/about"
+    assert normalize_company_url("https://example.com/about") == "https://example.com/about"
+
+
+def test_parse_html_for_company_info(sample_html):
+    """Test HTML parsing extracts company info correctly."""
+    from proposal_tools import parse_html_for_company_info
+
+    result = parse_html_for_company_info(sample_html, "Acme Corp")
+
+    assert "SaaS solutions" in result['description']
+    assert "Python" in result['tech_stack']
+    assert "React" in result['tech_stack']
+    assert "Aws" in result['tech_stack']  # Should be title-cased
+    assert "Postgresql" in result['tech_stack']
+    assert len(result['services']) > 0
+    assert "Snowflake" in result['services'][0] or "Tableau" in result['services'][0]
+    assert len(result['pain_points']) > 0  # Should detect "struggle" keyword
+
+
+def test_merge_page_data():
+    """Test merging data from multiple pages."""
+    from proposal_tools import merge_page_data
+
+    page_data = [
+        {
+            'url': 'https://example.com/',
+            'parsed_info': {
+                'description': 'We are a SaaS company',
+                'tech_stack': ['Python', 'React'],
+                'services': ['Service A'],
+                'pain_points': ['Pain 1']
+            }
+        },
+        {
+            'url': 'https://example.com/about',
+            'parsed_info': {
+                'description': 'Longer description about our company and mission',
+                'tech_stack': ['Python', 'AWS'],  # Duplicate Python should be deduped
+                'services': ['Service B'],
+                'pain_points': ['Pain 2']
+            }
+        }
+    ]
+
+    result = merge_page_data(page_data, "Example Corp")
+
+    assert result['company_name'] == "Example Corp"
+    assert "Longer description" in result['description']  # Should pick longest
+    assert len(set(result['tech_stack'])) == 3  # Python, React, AWS (deduped)
+    assert len(result['services']) == 2
+    assert len(result['sources']) == 2
+
+
+@pytest.mark.asyncio
+async def test_research_company_with_url(mock_context, sample_html):
+    """Test research_company with URL input (web fetch path)."""
+    from proposal_tools import research_company
+    from urllib.parse import urlparse
+
+    # Mock HTTP responses for page fetching
+    async def mock_get(url, **kwargs):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {'content-type': 'text/html'}
+
+        if '/about' in url or urlparse(url).path == '/':
+            mock_response.text = sample_html
+        else:
+            mock_response.text = "<html><body>404</body></html>"
+
+        mock_response.raise_for_status = MagicMock()
+        return mock_response
+
+    mock_context.deps.http_client.get = mock_get
+
+    # Call research_company with URL
+    result_json = await research_company(
+        mock_context,
+        "https://acmecorp.com",
+        "detailed"
+    )
+
+    # Parse result
+    result = json.loads(result_json)
+
+    assert result['company_name'] == "Acmecorp"  # Extracted from URL
+    assert "Python" in result['tech_stack'] or "React" in result['tech_stack']
+    assert len(result['sources']) > 0
+    assert result['business_description']  # Should have description from HTML
