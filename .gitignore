@@ -66,6 +66,11 @@ logs/
 *.bak
 *.swp
 *~
+nul
+
+# Utility scripts (local development only)
+cleanup_archon.py
+clear_db.py
 
 # Project-specific (uncomment if needed)
 # Files/ (if you don't want to track sample files)
