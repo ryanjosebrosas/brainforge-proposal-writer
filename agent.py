@@ -36,17 +36,20 @@ load_dotenv(dotenv_path, override=True)
 
 # ========== Helper function to get model configuration ==========
 def get_model():
-    from pydantic_ai.providers import Provider
-
     llm = os.getenv('LLM_CHOICE') or 'gpt-4o-mini'
-    base_url = os.getenv('LLM_BASE_URL') or 'https://api.openai.com/v1'
-    api_key = os.getenv('LLM_API_KEY') or 'ollama'
 
-    # Create AsyncOpenAI client for custom provider
-    openai_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+    # For custom base URLs, we need to set environment variables
+    # that OpenAI SDK will pick up
+    base_url = os.getenv('LLM_BASE_URL')
+    api_key = os.getenv('LLM_API_KEY')
 
-    # Return model with custom provider
-    return OpenAIModel(llm, provider=Provider(openai_client))
+    if base_url:
+        os.environ['OPENAI_BASE_URL'] = base_url
+    if api_key:
+        os.environ['OPENAI_API_KEY'] = api_key
+
+    # Return model - will use environment variables
+    return OpenAIModel(llm)
 
 # ========== Pydantic AI Agent ==========
 @dataclass
