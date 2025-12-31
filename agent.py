@@ -242,32 +242,35 @@ async def search_relevant_projects(
     tech_filter: Optional[List[str]] = None,
     industry: Optional[str] = None,
     project_type: Optional[str] = None,
-    max_results: int = 5,
-    mode: Literal["concise", "detailed"] = "concise"
+    section: Optional[str] = None,
+    max_results: Optional[int] = 5,
+    mode: Optional[Literal["concise", "detailed"]] = "concise"
 ) -> str:
     """
-    Search Brainforge's case studies with advanced metadata filters.
+    Search Brainforge's case studies with optional metadata filters.
 
     Use this to find relevant past projects that match the job requirements.
-    Filter by technologies, industry, or project type for better matches.
+    ALL FILTER PARAMETERS ARE OPTIONAL - you can call with just a query for broad searches.
 
     Args:
         ctx: Context with Supabase and embedding clients
-        query: Search query describing what you're looking for (e.g., "AI workflow automation")
-        tech_filter: List of technologies to filter by (e.g., ["Python", "React"])
-        industry: Filter by industry (e.g., "E-commerce", "Healthcare")
-        project_type: Filter by type (e.g., "AI_ML", "BI_Analytics", "Workflow_Automation")
+        query: Search query describing what you're looking for (REQUIRED)
+        tech_filter: Optional list of technologies (e.g., ["Python", "React"]) - omit for broader search
+        industry: Optional industry filter (e.g., "E-commerce", "Healthcare") - omit for broader search
+        project_type: Optional type filter (e.g., "BI_Analytics", "Data_Engineering") - omit for broader search
+        section: Optional section filter (e.g., "Results", "Challenge") - usually omit
         max_results: Maximum number of projects to return (default 5)
-        mode: "concise" (just metadata) or "detailed" (includes summary)
+        mode: "concise" (just metadata) or "detailed" (includes summary, metrics) - default "concise"
 
     Returns:
-        JSON string with ProjectSearchResults schema containing:
-        - matches: List of ProjectMatch objects with relevance scores
-        - total_found: Total matches before truncation
-        - search_query, filters_applied
+        Formatted text with project details (NOT JSON)
 
-    Example:
-        search_relevant_projects(ctx, "e-commerce analytics dashboard", tech_filter=["Tableau", "Python"])
+    Examples:
+        # Targeted search with filters
+        search_relevant_projects(ctx, "analytics dashboard", tech_filter=["Tableau"], industry="E-commerce", project_type="BI_Analytics", mode="detailed")
+
+        # Broad search without filters (for second sweep)
+        search_relevant_projects(ctx, "analytics dashboard", mode="detailed")
     """
     print(f"Calling search_relevant_projects tool with query: {query}")
     return await search_relevant_projects_tool(
@@ -276,7 +279,7 @@ async def search_relevant_projects(
         tech_filter=tech_filter,
         industry=industry,
         project_type=project_type,
-        section=None,  # Section filter not exposed in agent tool
+        section=section,
         max_results=max_results,
         mode=mode
     )
