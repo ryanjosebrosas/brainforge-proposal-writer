@@ -240,12 +240,12 @@ async def research_company(
 async def search_relevant_projects(
     ctx: RunContext[AgentDeps],
     query: str,
-    tech_filter: Annotated[List[str] | None, Field(description="Optional list of technologies to filter by")] = None,
-    industry: Annotated[str | None, Field(description="Optional industry filter")] = None,
-    project_type: Annotated[str | None, Field(description="Optional project type filter")] = None,
-    section: Annotated[str | None, Field(description="Optional section filter")] = None,
-    max_results: Annotated[int, Field(description="Max results to return", ge=1, le=20)] = 5,
-    mode: Annotated[Literal["concise", "detailed"], Field(description="Response format")] = "concise"
+    tech_filter: Optional[List[str]] = None,
+    industry: Optional[str] = None,
+    project_type: Optional[str] = None,
+    section: Optional[str] = None,
+    max_results: int = 5,
+    mode: Literal["concise", "detailed"] = "concise"
 ) -> str:
     """
     Search Brainforge's case studies with optional metadata filters.
