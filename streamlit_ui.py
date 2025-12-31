@@ -102,6 +102,21 @@ Follow the complete workflow:
 
 Return the final proposal with quality score."""
 
+        elif content_type == "catalant_proposal":
+            prompt = f"""Generate a Catalant consulting proposal for this project:
+
+{user_input}
+
+Follow the complete workflow:
+1. Extract company name if mentioned, then research_company
+2. Extract project type and use search_relevant_projects
+3. Use get_project_details for top matches
+4. Use generate_content with content_type="catalant_proposal"
+5. Use review_and_score to validate quality
+
+Return the final proposal with quality score.
+Note: Use formal Catalant format (credentials-first, numbered projects, professional tone)."""
+
         else:  # outreach_email
             prompt = f"""Generate a personalized outreach email for:
 
@@ -170,16 +185,23 @@ def main():
 
         # Mode selector
         content_type = st.radio(
-            "Select Mode:",
-            options=["upwork_proposal", "outreach_email"],
-            format_func=lambda x: "🎯 Upwork Proposal" if x == "upwork_proposal" else "📧 Outreach Email",
+            "Select Platform:",
+            options=["upwork_proposal", "catalant_proposal", "outreach_email"],
+            format_func=lambda x: {
+                "upwork_proposal": "🎯 Upwork Proposal",
+                "catalant_proposal": "💼 Catalant Proposal",
+                "outreach_email": "📧 Outreach Email"
+            }[x],
             horizontal=True
         )
 
         # Input text area
         if content_type == "upwork_proposal":
             placeholder = "Paste the Upwork job posting here...\n\nExample:\nLooking for a data analyst to build dashboards using Tableau and Snowflake for our e-commerce company..."
-            help_text = "Paste the full job posting. Include company name if mentioned."
+            help_text = "Paste the full Upwork job posting. Include company name if mentioned."
+        elif content_type == "catalant_proposal":
+            placeholder = "Paste the Catalant project brief here...\n\nExample:\nSeeking analytics architect to consolidate fragmented data sources and build a single source of truth..."
+            help_text = "Paste the full Catalant project description."
         else:
             placeholder = "Enter company name or target information...\n\nExample:\nAcme Corp - e-commerce company looking to improve their analytics"
             help_text = "Provide company name and context for personalized outreach."

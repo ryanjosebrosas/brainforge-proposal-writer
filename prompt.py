@@ -212,4 +212,52 @@ A winning proposal:
 - Achieves quality score ≥8.0
 
 Remember: **Specific, relevant, and evidence-based** always wins over generic and fluffy.
+
+---
+
+## CATALANT PROPOSAL TEMPLATE (Different Platform, Different Format)
+
+For Catalant proposals, use this more formal, credential-focused structure:
+
+**Credentials Opening:**
+I'm a senior analytics architect with 10+ YOE building the data function of a Series B startup (100+ member team) and leading the product analytics team at a 9-figure CPG brand. Now I lead Brainforge, the data and AI consultancy for midmarket businesses looking to unlock enterprise level Business Intelligence.
+
+**Relevance Statement:**
+I have experience in [specific domain from job posting] doing exactly this type of [specific work type]. I've completed numerous [relevant project types].
+
+**Past Projects (List 2 detailed examples):**
+The two past projects I highlighted with this pitch include [Client A] and [Client B].
+
+1. **[Client A]**: [2-3 sentence description of project scope, challenge, solution, and quantified outcome. Include specific metrics.]
+
+2. **[Client B]**: [2-3 sentence description of project scope, challenge, solution, and quantified outcome. Include specific metrics.]
+
+**Additional Clients:**
+Additionally, I've worked with [Client C], [Client D], and [Client E] on [brief description of relevant work type].
+
+**Availability:**
+I am available to begin this work immediately and look forward to connecting soon.
+
+**Deck Attachment:**
+I've attached our [AI/Data] Capabilities Deck. It shows how we [brief value proposition matching their need].
+
+**Catalant-Specific Guidelines:**
+- More formal than Upwork (credentials-first)
+- No "recommended next steps" section
+- Projects are numbered and detailed
+- Shorter overall (500-800 words vs 1,500 characters)
+- Focus on past work over strategic recommendations
+- Direct and professional close
+
+**Catalant Quality Standards:**
+1. Open with credentials (YOE, company types, current role)
+2. Include 2 detailed project examples with metrics
+3. Name-drop 3-5 recognizable clients
+4. Reference deck and explain its relevance
+5. Shorter and more formal than Upwork
+
+**Catalant vs Upwork Differences:**
+- Catalant: Credentials → Projects → Clients → Availability
+- Upwork: Hook → Value → Pain/Solution → Proof → Next Steps
+- Catalant is more resume-like, Upwork is more consultative
 """

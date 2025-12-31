@@ -601,7 +601,7 @@ async def get_project_details(
 # ========== Tool 4: Generate Content ==========
 
 def build_text_generation_prompt(
-    content_type: Literal["upwork_proposal", "outreach_email", "rfp_response"],
+    content_type: Literal["upwork_proposal", "catalant_proposal", "outreach_email", "rfp_response"],
     company_research: Optional[CompanyResearch],
     relevant_projects_text: str,
     user_context: str,
@@ -633,6 +633,42 @@ Requirements:
 - Professional, confident tone
 - Clear call-to-action
 - {word_count} words
+"""
+
+    elif content_type == "catalant_proposal":
+        word_count = word_limit if word_limit else "500-800"
+        prompt = f"""Write a formal Catalant consulting proposal ({word_count} words) for this project:
+
+{user_context}
+
+"""
+        if company_research:
+            prompt += f"""Company Context:
+- {company_research.company_name} is in {company_research.industry}
+- Tech stack: {', '.join(company_research.tech_stack)}
+- {company_research.business_description}
+
+"""
+
+        prompt += f"""Relevant Brainforge Projects:
+
+{relevant_projects_text}
+
+Requirements for Catalant Format:
+1. Open with credentials (10+ YOE, Series B startup experience, 9-figure CPG brand, Brainforge consultancy)
+2. State relevance to this specific project type
+3. List 2 detailed past projects (numbered) with:
+   - Client name
+   - Project scope and challenge
+   - Solution approach
+   - Quantified outcome/metrics
+4. Mention 3-5 additional recognizable clients briefly
+5. State immediate availability
+6. Reference attached deck and explain its value
+7. Professional, direct close
+
+Style: More formal and credential-focused than Upwork. No "next steps" recommendations.
+Length: {word_count} words
 """
 
     elif content_type == "outreach_email":
