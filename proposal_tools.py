@@ -915,7 +915,7 @@ async def generate_content(
         from pydantic_ai import Agent
         from agent import get_model
         model = get_model()
-        generator_agent = Agent(model, result_type=str)
+        generator_agent = Agent(model, output_type=str)
 
         result = await generator_agent.run(prompt)
         content = result.data

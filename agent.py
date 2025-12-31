@@ -1,4 +1,4 @@
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai import Agent, RunContext
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -49,7 +49,7 @@ def get_model():
         os.environ['OPENAI_API_KEY'] = api_key
 
     # Return model - will use environment variables
-    return OpenAIModel(llm)
+    return OpenAIChatModel(llm)
 
 # ========== Pydantic AI Agent ==========
 @dataclass
