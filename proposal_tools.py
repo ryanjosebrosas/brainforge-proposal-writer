@@ -213,13 +213,14 @@ async def research_company(
 
 # ========== Tool 2: Search Relevant Projects ==========
 
-def build_enriched_project_match(search_doc: dict, full_study: dict) -> ProjectMatch:
+def build_enriched_project_match(search_doc: dict, full_study: dict, file_id: str) -> ProjectMatch:
     """
     Build enriched ProjectMatch using FULL case study data from get_case_study_full RPC.
 
     Args:
         search_doc: Original search result (for relevance score)
         full_study: Full case study data from get_case_study_full()
+        file_id: Original file_id from search (full path) to preserve correct ID
 
     Returns:
         ProjectMatch with complete context and all metrics
@@ -267,7 +268,7 @@ def build_enriched_project_match(search_doc: dict, full_study: dict) -> ProjectM
         rich_summary = f"**Key Metrics**: {metrics_str}\n\n{rich_summary}"
 
     return ProjectMatch(
-        project_id=full_study.get('file_id', 'unknown'),
+        project_id=file_id,  # Use the original file_id from search (full path)
         project_name=frontmatter.get('title', full_study.get('file_name', 'Unknown Project')),
         project_type=frontmatter.get('project_type', 'Unknown'),
         industry=frontmatter.get('industry', 'Unknown'),
@@ -417,7 +418,7 @@ async def search_relevant_projects(
                         if full_study.data and len(full_study.data) > 0:
                             study_data = full_study.data[0]
                             # Build enriched ProjectMatch with full context
-                            enriched_match = build_enriched_project_match(doc, study_data)
+                            enriched_match = build_enriched_project_match(doc, study_data, file_id)
                             matches.append(enriched_match)
                         else:
                             # Fallback to basic format if RPC fails
