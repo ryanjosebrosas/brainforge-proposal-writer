@@ -247,6 +247,11 @@ async def fetch_multiple_pages(
     """
     Fetch multiple relevant pages from a company website in parallel.
 
+    Strategy:
+    1. Always fetch homepage (/)
+    2. Try common About page variations
+    3. Skip paths that don't exist (handle 404s gracefully)
+
     Args:
         base_url: Base company URL (e.g., https://example.com)
         http_client: Async HTTP client
@@ -254,35 +259,52 @@ async def fetch_multiple_pages(
     Returns:
         List of dicts with 'url', 'html', 'parsed_info' keys
     """
-    # Common page paths to check
-    page_paths = ['/', '/about', '/about-us', '/company', '/products', '/services', '/solutions', '/technology', '/team']
+    # Prioritized list: Most sites have these
+    # Reduced from 9 paths to 5 most common
+    page_paths = [
+        '/',  # Homepage (always exists)
+        '/about',  # Most common about page
+        '/company',  # Alternative about page
+        '/solutions',  # Product/service info
+        '/platform'  # Tech/platform details
+    ]
 
     # Build full URLs
-    urls_to_fetch = []
     parsed_url = urlparse(base_url)
     base_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    for path in page_paths:
-        full_url = urljoin(base_domain, path)
-        urls_to_fetch.append(full_url)
+    urls_to_fetch = [urljoin(base_domain, path) for path in page_paths]
 
-    # Fetch all pages in parallel (max 5 to avoid overwhelming server)
-    print(f"[FETCH] Fetching {len(urls_to_fetch[:5])} pages from {base_domain}")
-    fetch_tasks = [fetch_page_content(url, http_client) for url in urls_to_fetch[:5]]
+    # Fetch all pages in parallel
+    print(f"[FETCH] Fetching up to {len(urls_to_fetch)} pages from {base_domain}")
+    fetch_tasks = [fetch_page_content(url, http_client, timeout=8.0) for url in urls_to_fetch]
     results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
 
-    # Process successful fetches
+    # Process successful fetches (ignore 404s and errors)
     page_data = []
-    for url, html in zip(urls_to_fetch[:5], results):
+    for url, html in zip(urls_to_fetch, results):
         if html and isinstance(html, str):
             parsed_info = parse_html_for_company_info(html, base_domain)
             page_data.append({
                 'url': url,
-                'html': html[:5000],  # Keep first 5000 chars for debugging
+                'html': html[:10000],  # Keep first 10K chars (increased from 5K)
                 'parsed_info': parsed_info
             })
 
-    print(f"[FETCH] Successfully fetched {len(page_data)} pages")
+    print(f"[FETCH] Successfully fetched {len(page_data)}/{len(urls_to_fetch)} pages")
+
+    # FALLBACK: If we got nothing, at least ensure we have homepage
+    if not page_data:
+        print(f"[FETCH] No pages fetched, retrying homepage only")
+        homepage_html = await fetch_page_content(base_domain, http_client, timeout=10.0)
+        if homepage_html:
+            parsed_info = parse_html_for_company_info(homepage_html, base_domain)
+            page_data.append({
+                'url': base_domain,
+                'html': homepage_html[:10000],
+                'parsed_info': parsed_info
+            })
+
     return page_data
 
 
@@ -436,19 +458,30 @@ def build_company_search_queries(company_name: str, focus_areas: Optional[List[s
 
 
 async def execute_brave_search(query: str, http_client: AsyncClient, api_key: str) -> dict:
-    """Execute Brave Search API call. Pattern from tools.py:16-52."""
+    """
+    Execute Brave Search API call with enhanced parameters for company research.
+
+    Uses:
+    - result_filter: Request infobox, locations, web results
+    - extra_snippets: Get up to 5 alternative excerpts
+    - count: More results for better context
+    """
     headers = {
         'X-Subscription-Token': api_key,
         'Accept': 'application/json',
+        'Accept-Encoding': 'gzip'
     }
 
     response = await http_client.get(
         'https://api.search.brave.com/res/v1/web/search',
         params={
             'q': query,
-            'count': 5,
+            'count': 10,  # Increased from 5
             'text_decorations': True,
-            'search_lang': 'en'
+            'search_lang': 'en',
+            'result_filter': 'web,infobox,locations',  # Request structured data
+            'extra_snippets': True,  # Get additional excerpts
+            'summary': True  # Enable summary generation
         },
         headers=headers
     )
@@ -457,12 +490,14 @@ async def execute_brave_search(query: str, http_client: AsyncClient, api_key: st
 
 
 def parse_brave_results_to_company_research(results_list: List[dict], company_name: str) -> CompanyResearch:
-    """Parse Brave API responses into CompanyResearch model."""
-    all_results = []
-    for result in results_list:
-        web_results = result.get('web', {}).get('results', [])
-        all_results.extend(web_results[:3])
+    """
+    Parse Brave API responses into CompanyResearch model.
 
+    Extracts data from:
+    - web.results: Standard search results
+    - infobox: Structured entity information
+    - locations: Business listings with structured data
+    """
     industry = "Unknown"
     business_description = ""
     size_estimate = "SMB"
@@ -472,48 +507,107 @@ def parse_brave_results_to_company_research(results_list: List[dict], company_na
     key_people = []
     sources = []
 
-    for item in all_results:
-        title = item.get('title', '')
-        description = item.get('description', '')
-        url = item.get('url', '')
+    # Extract from ALL result types
+    for result in results_list:
+        # 1. INFOBOX: Structured company/entity data (PRIORITY)
+        infobox = result.get('infobox', {})
+        if infobox:
+            print(f"[BRAVE] Found infobox data for {company_name}")
+            # Infobox often has rich entity information
+            if 'long_desc' in infobox:
+                business_description = infobox['long_desc'][:400]
+            elif 'description' in infobox:
+                business_description = infobox['description'][:300]
 
-        sources.append(url)
+            # Extract website URL from infobox
+            if 'url' in infobox:
+                sources.append(infobox['url'])
 
-        full_text = f"{title} {description}".lower()
+        # 2. LOCATIONS: Business listing data with structured fields
+        locations = result.get('locations', {}).get('results', [])
+        if locations:
+            print(f"[BRAVE] Found {len(locations)} location results")
+            for loc in locations[:2]:
+                # Extract business context from location data
+                if 'description' in loc and not business_description:
+                    business_description = loc['description'][:300]
 
-        if not business_description and len(description) > 50:
-            business_description = description[:200]
+                # Get industry from categories
+                if 'categories' in loc and isinstance(loc['categories'], list):
+                    for cat in loc['categories']:
+                        cat_lower = cat.lower()
+                        if 'health' in cat_lower or 'medical' in cat_lower:
+                            industry = "Healthcare"
+                        elif 'tech' in cat_lower or 'software' in cat_lower:
+                            industry = "SaaS"
+                        elif 'retail' in cat_lower or 'store' in cat_lower:
+                            industry = "E-commerce"
 
-        if any(ind.lower() in full_text for ind in ["saas", "software", "cloud"]):
-            industry = "SaaS"
-        elif any(ind.lower() in full_text for ind in ["ecommerce", "e-commerce", "retail"]):
-            industry = "E-commerce"
-        elif any(ind.lower() in full_text for ind in ["healthcare", "health", "medical"]):
-            industry = "Healthcare"
+                # Add location URL to sources
+                if 'url' in loc:
+                    sources.append(loc['url'])
 
-        for tech in ["python", "react", "aws", "azure", "postgresql", "mongodb", "kubernetes", "docker"]:
-            if tech in full_text and tech.title() not in tech_stack:
-                tech_stack.append(tech.title())
+        # 3. WEB RESULTS: Standard search results
+        web_results = result.get('web', {}).get('results', [])
+        for item in web_results[:5]:  # Increased from 3
+            title = item.get('title', '')
+            description = item.get('description', '')
+            url = item.get('url', '')
+            extra_snippets = item.get('extra_snippets', [])  # NEW: Alternative excerpts
 
-        if any(word in full_text for word in ["funding", "raised", "series", "acquisition", "launched"]):
-            if description:
-                recent_developments.append(description[:150])
+            sources.append(url)
 
+            # Combine description + extra snippets for richer context
+            all_text_parts = [description]
+            if extra_snippets:
+                all_text_parts.extend(extra_snippets[:2])  # Use first 2 extra snippets
+
+            full_text = f"{title} {' '.join(all_text_parts)}".lower()
+
+            # Use first substantial description
+            if not business_description and len(description) > 50:
+                business_description = description[:300]
+
+            # Industry detection (enhanced with more keywords)
+            if any(keyword in full_text for keyword in ["healthcare", "health", "medical", "patient", "clinic", "telehealth"]):
+                industry = "Healthcare"
+            elif any(keyword in full_text for keyword in ["home services", "hvac", "plumbing", "electrical"]):
+                industry = "Home Services"
+            elif any(keyword in full_text for keyword in ["saas", "software as a service", "cloud platform"]):
+                industry = "SaaS"
+            elif any(keyword in full_text for keyword in ["ecommerce", "e-commerce", "retail", "marketplace"]):
+                industry = "E-commerce"
+            elif any(keyword in full_text for keyword in ["marketing", "advertising", "agency"]):
+                industry = "Marketing"
+
+            # Tech stack extraction
+            for tech in ["python", "react", "vue", "angular", "aws", "azure", "gcp", "postgresql", "mongodb", "kubernetes", "docker", "snowflake", "dbt", "tableau"]:
+                if tech in full_text and tech.title() not in tech_stack:
+                    tech_stack.append(tech.title())
+
+            # Recent developments
+            if any(word in full_text for word in ["funding", "raised", "series", "acquisition", "launched", "announced"]):
+                if description:
+                    recent_developments.append(description[:150])
+
+    # Size estimation
     if "enterprise" in business_description.lower() or "1000+" in business_description:
         size_estimate = "enterprise"
     elif "startup" in business_description.lower() or "founded 20" in business_description:
         size_estimate = "startup"
+
+    print(f"[BRAVE] Extracted - Industry: {industry}, Description length: {len(business_description)}, Tech: {len(tech_stack)}")
 
     return CompanyResearch(
         company_name=company_name,
         industry=industry,
         business_description=business_description or f"Company operating in {industry} sector",
         size_estimate=size_estimate,
-        tech_stack=tech_stack[:5],
+        tech_stack=tech_stack[:10],  # Increased from 5
         recent_developments=recent_developments[:3],
         pain_points=pain_points,
         key_people=key_people,
-        sources=sources[:5]
+        sources=list(dict.fromkeys(sources))[:10]  # Deduplicate and limit
     )
 
 
