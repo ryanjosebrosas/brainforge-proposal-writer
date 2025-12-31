@@ -6,7 +6,8 @@ from openai import AsyncOpenAI
 from httpx import AsyncClient
 from supabase import Client
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
+from pydantic import Field
 import os
 
 from prompt import AGENT_SYSTEM_PROMPT
@@ -239,12 +240,12 @@ async def research_company(
 async def search_relevant_projects(
     ctx: RunContext[AgentDeps],
     query: str,
-    tech_filter: List[str] | None = None,
-    industry: str | None = None,
-    project_type: str | None = None,
-    section: str | None = None,
-    max_results: int = 5,
-    mode: Literal["concise", "detailed"] = "concise"
+    tech_filter: Annotated[List[str] | None, Field(description="Optional list of technologies to filter by")] = None,
+    industry: Annotated[str | None, Field(description="Optional industry filter")] = None,
+    project_type: Annotated[str | None, Field(description="Optional project type filter")] = None,
+    section: Annotated[str | None, Field(description="Optional section filter")] = None,
+    max_results: Annotated[int, Field(description="Max results to return", ge=1, le=20)] = 5,
+    mode: Annotated[Literal["concise", "detailed"], Field(description="Response format")] = "concise"
 ) -> str:
     """
     Search Brainforge's case studies with optional metadata filters.
