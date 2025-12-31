@@ -73,7 +73,7 @@ async def run_proposal_workflow(content_type, user_input):
 
     Returns: dict with research, projects, content, and review data
     """
-    embedding_client, supabase = get_agent_deps_cached()
+    embedding_client, supabase, user_preferences = get_agent_deps_cached()
 
     async with AsyncClient() as http_client:
         agent_deps = AgentDeps(
@@ -82,7 +82,9 @@ async def run_proposal_workflow(content_type, user_input):
             http_client=http_client,
             brave_api_key=os.getenv("BRAVE_API_KEY", ""),
             searxng_base_url=os.getenv("SEARXNG_BASE_URL", ""),
-            memories=""
+            memories="",
+            user_id="default_user",
+            user_preferences=user_preferences
         )
 
         # Run agent with the workflow prompt

@@ -27,18 +27,22 @@ def get_agent_clients(user_id: str = "default_user"):
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
     supabase = Client(supabase_url, supabase_key)
 
-    # Load user preferences
+    # Load user preferences (gracefully handle missing table)
     try:
+        print(f"Loading preferences for user: {user_id}")
         user_preferences = load_user_preferences(supabase, user_id)
         print(f"Loaded preferences for user: {user_id}")
     except Exception as e:
-        print(f"Error loading user preferences, using defaults: {e}")
+        # If user_preferences table doesn't exist, use defaults
+        print(f"Error loading user preferences: {e}")
+        print("Using default preferences (template customization not configured)")
         user_preferences = UserPreferences(
             user_id=user_id,
             template_id="technical-001",
             tone_id="professional-001",
             restrictions=None
         )
+        print(f"Loaded preferences for user: {user_id}")
 
     return embedding_client, supabase, user_preferences
 
