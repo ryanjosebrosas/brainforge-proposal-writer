@@ -210,7 +210,7 @@ Return the final email with quality score."""
             print(f"AGENT RUN COMPLETED SUCCESSFULLY")
             print(f"{'='*60}\n")
 
-            return result.data
+            return result.output
 
         except Exception as e:
             import traceback

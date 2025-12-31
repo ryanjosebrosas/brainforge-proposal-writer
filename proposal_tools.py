@@ -919,7 +919,7 @@ async def generate_content(
         generator_agent = Agent(model, output_type=str)
 
         result = await generator_agent.run(prompt)
-        content = result.data
+        content = result.output
 
         word_count = len(content.split())
 
