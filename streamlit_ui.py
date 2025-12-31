@@ -111,14 +111,18 @@ Follow the complete workflow:
 
 3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
 
+   VALID PROJECT TYPES: BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML
+
    FIRST SWEEP - Targeted search:
-   - Extract specific: technologies, industry, project_type from job posting
-   - Call search_relevant_projects with these filters (mode="detailed")
+   - Extract specific: technologies, industry from job posting
+   - Pick project_type from VALID list above (e.g., BI_Analytics or Data_Engineering)
+   - Call search_relevant_projects(query="...", tech_filter=[...], industry="...", project_type="BI_Analytics", mode="detailed")
    - This gets highly relevant matches
 
    SECOND SWEEP - Broader search:
-   - Use general job description keywords (remove filters)
-   - Call search_relevant_projects with broader query (mode="detailed")
+   - Use general job description keywords
+   - CRITICAL: Do NOT pass tech_filter, industry, or project_type parameters
+   - Call search_relevant_projects(query="analytics data", mode="detailed")
    - This catches any great matches that filters might have excluded
 
    COMBINE results from both sweeps, deduplicate, pick top 2-3 best matches
@@ -146,13 +150,17 @@ Follow the complete workflow:
 
 3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
 
+   VALID PROJECT TYPES: BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML
+
    FIRST SWEEP - Targeted:
-   - Extract specific project_type, industry from brief
-   - Call search_relevant_projects with filters (mode="detailed")
+   - Extract specific industry from brief
+   - Pick project_type from VALID list above (e.g., BI_Analytics or Data_Engineering)
+   - Call search_relevant_projects(query="...", industry="...", project_type="BI_Analytics", mode="detailed")
 
    SECOND SWEEP - Broader:
-   - Use general description keywords (no filters)
-   - Call search_relevant_projects with broader query (mode="detailed")
+   - Use general description keywords
+   - CRITICAL: Do NOT pass industry or project_type parameters
+   - Call search_relevant_projects(query="analytics consulting", mode="detailed")
 
    COMBINE both sweeps, deduplicate, pick top 2-3
 
@@ -178,8 +186,10 @@ Follow the complete workflow:
    - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
 
 3. TWO-SWEEP CASE STUDY SEARCH:
-   FIRST SWEEP - Specific to their domain
-   SECOND SWEEP - Broader relevant projects
+   VALID PROJECT TYPES: BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML
+
+   FIRST SWEEP - Specific to their domain (with filters)
+   SECOND SWEEP - Broader (NO filters, just query)
    COMBINE and deduplicate
 
 4. Use generate_content with deck content + case studies

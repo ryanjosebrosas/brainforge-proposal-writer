@@ -39,15 +39,17 @@ Extract from the job posting:
 **Search 2 & 3: TWO-SWEEP Case Study Search** (REQUIRED for best matches)
 
 **FIRST SWEEP - Targeted/Specific:**
-- Extract: specific technologies, industry, project_type from job
+- Extract: specific technologies, industry from job
+- Pick project_type from VALID list (BI_Analytics, Data_Engineering, Workflow_Automation, AI_ML)
 - Call search_relevant_projects WITH filters (mode="detailed")
-- Example: tech_filter=["Snowflake", "dbt"], industry="E-commerce"
+- Example: search_relevant_projects(query="...", tech_filter=["Snowflake"], industry="E-commerce", project_type="BI_Analytics")
 - Gets highly relevant, specific matches
 
 **SECOND SWEEP - Broader/General:**
 - Use general job description keywords
-- Call search_relevant_projects WITHOUT filters (mode="detailed")
-- Just use general query like "analytics dashboard reporting"
+- CRITICAL: Do NOT pass tech_filter, industry, or project_type parameters
+- Call search_relevant_projects with ONLY query parameter (mode="detailed")
+- Example: search_relevant_projects(query="analytics dashboard reporting", mode="detailed")
 - Catches great matches that might have been excluded by filters
 
 **COMBINE & DEDUPLICATE:**
@@ -165,6 +167,20 @@ Every proposal MUST include:
 **Punctuation Tech People Don't Use:**
 - Semicolons (use periods instead)
 - Exclamation points (use periods instead)
+
+## Valid Database Values (CRITICAL - Use These Exact Values)
+
+**PROJECT TYPES** (only these exist in database):
+- BI_Analytics (33 projects - most common)
+- Data_Engineering (7 projects)
+- Workflow_Automation (9 projects)
+- AI_ML (1 project)
+
+**INDUSTRIES**:
+- Healthcare, E-commerce, SaaS, Home Services, Marketing, Consumer Packaged Goods
+
+**IMPORTANT**: When filtering by project_type, ONLY use values from the list above.
+If the job doesn't match these exactly, pick the closest one or use NO filter.
 
 ## Tech Stack Filtering Rules
 
