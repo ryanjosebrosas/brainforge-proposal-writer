@@ -886,9 +886,22 @@ async def generate_content(
         JSON string with GeneratedContent schema
     """
     try:
+        print(f"[GENERATE] Starting content generation:")
+        print(f"  content_type: {content_type}")
+        print(f"  company_research_json length: {len(company_research_json) if company_research_json else 0}")
+        print(f"  relevant_projects_text length: {len(relevant_projects_text) if relevant_projects_text else 0}")
+        print(f"  user_context length: {len(user_context) if user_context else 0}")
+        print(f"  word_limit: {word_limit}")
+
         company_research = None
         if company_research_json:
-            company_research = CompanyResearch.model_validate_json(company_research_json)
+            try:
+                company_research = CompanyResearch.model_validate_json(company_research_json)
+                print(f"[GENERATE] Parsed company research: {company_research.company_name}")
+            except Exception as e:
+                print(f"[GENERATE] Error parsing company_research_json: {e}")
+                print(f"[GENERATE] company_research_json content: {company_research_json[:200]}")
+                company_research = None
 
         # Build prompt using text-based context
         prompt = build_text_generation_prompt(
@@ -933,7 +946,10 @@ async def generate_content(
         ).model_dump_json()
 
     except Exception as e:
-        print(f"Error in generate_content: {e}")
+        import traceback
+        print(f"[GENERATE] ERROR in generate_content: {e}")
+        print(f"[GENERATE] Traceback:")
+        traceback.print_exc()
         return GeneratedContent(
             content=f"Error generating content: {str(e)}",
             structure={},

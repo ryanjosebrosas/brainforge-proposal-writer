@@ -363,8 +363,22 @@ async def generate_content(
         2. search_relevant_projects() → projects_text (formatted text)
         3. generate_content(ctx, "upwork_proposal", company_json, projects_text, job_posting)
     """
-    print(f"Calling generate_content tool for content_type: {content_type}")
-    return await generate_content_tool(ctx, content_type, company_research_json, relevant_projects_text, user_context, word_limit)
+    print(f"[TOOL] Calling generate_content tool")
+    print(f"[TOOL]   content_type: {content_type}")
+    print(f"[TOOL]   company_research_json: {len(company_research_json) if company_research_json else 0} chars")
+    print(f"[TOOL]   relevant_projects_text: {len(relevant_projects_text) if relevant_projects_text else 0} chars")
+    print(f"[TOOL]   user_context: {len(user_context) if user_context else 0} chars")
+    print(f"[TOOL]   word_limit: {word_limit}")
+
+    try:
+        result = await generate_content_tool(ctx, content_type, company_research_json, relevant_projects_text, user_context, word_limit)
+        print(f"[TOOL] generate_content completed successfully")
+        return result
+    except Exception as e:
+        import traceback
+        print(f"[TOOL] ERROR in generate_content wrapper: {e}")
+        traceback.print_exc()
+        raise
 
 @agent.tool
 async def review_and_score(
