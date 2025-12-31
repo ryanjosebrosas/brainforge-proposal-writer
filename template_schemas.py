@@ -10,7 +10,7 @@ This module defines 5 core data models for the template system:
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 class ProposalTemplate(BaseModel):
@@ -21,7 +21,7 @@ class ProposalTemplate(BaseModel):
     template_type: Literal["technical", "consultative", "quick_win"] = Field(
         ..., description="Template category"
     )
-    structure_config: Dict[str, any] = Field(
+    structure_config: Dict[str, Any] = Field(
         default_factory=dict,
         description="Template configuration (section weights, emphasis areas)"
     )
@@ -38,7 +38,7 @@ class TonePreset(BaseModel):
     tone_type: Literal["professional", "conversational", "technical", "friendly"] = Field(
         ..., description="Tone category"
     )
-    language_patterns: Dict[str, any] = Field(
+    language_patterns: Dict[str, Any] = Field(
         default_factory=dict,
         description="Language modifications (formality level, vocabulary choices)"
     )
