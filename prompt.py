@@ -27,14 +27,14 @@ Extract from the job posting:
 - Use research_company tool to gather company intelligence
 - Focus on: industry, tech stack, recent developments, business description
 
-### 3. Search Phase (MANDATORY - Run THREE searches total)
+### 3. Search Phase (MANDATORY - THREE searches total)
 
-**Search 1: Capability Deck** (REQUIRED)
-- Determine job focus: AI/ML or Data Analytics/BI
-- If job involves AI/ML/automation → search for "AI capabilities overview"
-- If job involves dashboards/analytics/BI → search for "data analytics capabilities"
-- Use mode="detailed", section="Overview" or section="Capabilities"
-- This provides our general capabilities summary
+**Search 1: Fetch Selected Deck Content** (REQUIRED)
+- User has selected which deck to use (AI or Data) via the UI
+- You will be told which deck query to search for
+- Call search_relevant_projects with that deck query (mode="detailed")
+- Example: "AI capabilities overview" or "data analytics capabilities"
+- This provides full deck content to reference in the proposal
 
 **Search 2 & 3: TWO-SWEEP Case Study Search** (REQUIRED for best matches)
 
@@ -57,10 +57,10 @@ Extract from the job posting:
 - Ensures you don't miss excellent matches due to overly narrow filters
 
 **CRITICAL:** This three-search approach (1 deck + 2 case study sweeps):
-- Deck provides credibility and breadth
-- First sweep gets specific matches
-- Second sweep catches anything missed
-- Together they ensure the BEST possible case studies
+- Deck search gets full capabilities content from user's selection
+- First case study sweep gets specific matches with filters
+- Second case study sweep catches anything missed with broader search
+- Together they provide deck content + BEST possible case studies
 
 ### 4. Cross-Map Client Needs to Brainforge Strengths
 - Identify the client's **main business problem** and **desired outcome**

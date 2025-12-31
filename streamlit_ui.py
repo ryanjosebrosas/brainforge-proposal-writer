@@ -87,7 +87,7 @@ async def run_proposal_workflow(content_type, user_input, deck_type="data"):
             user_preferences=user_preferences
         )
 
-        # Deck search query based on selection
+        # Deck query and name based on user selection
         deck_query = "AI capabilities overview" if deck_type == "ai" else "data analytics capabilities"
         deck_name = "Brainforge AI Capabilities Deck" if deck_type == "ai" else "Brainforge Data Capabilities Deck"
 
@@ -97,12 +97,17 @@ async def run_proposal_workflow(content_type, user_input, deck_type="data"):
 
 {user_input}
 
+DECK TO USE: {deck_name} (user selected - search for "{deck_query}" to get full deck content)
+
 Follow the complete workflow:
 1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
    - If YES: call research_company with that company name
    - If NO: skip research_company (don't call with generic terms)
 
-2. Search for capability deck: "{deck_query}" (mode="detailed")
+2. FETCH SELECTED DECK CONTENT:
+   - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
+   - This gets the full {deck_name} content from Supabase
+   - Use this content to show Brainforge's capabilities
 
 3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
 
@@ -118,7 +123,7 @@ Follow the complete workflow:
 
    COMBINE results from both sweeps, deduplicate, pick top 2-3 best matches
 
-4. Use generate_content with all context (mention "{deck_name}" in attachment note)
+4. Use generate_content with deck content + case studies (mention "{deck_name}" in attachment note)
 5. Use review_and_score to validate quality
 
 Return the final proposal with quality score."""
@@ -128,12 +133,16 @@ Return the final proposal with quality score."""
 
 {user_input}
 
+DECK TO USE: {deck_name} (user selected - search for "{deck_query}" to get full deck content)
+
 Follow the complete workflow:
 1. Check if a SPECIFIC company name is mentioned (like "Acme Corp" or "Amazon")
    - If YES: call research_company with that company name
    - If NO: skip research_company (don't call with generic terms)
 
-2. Search for capability deck: "{deck_query}" (mode="detailed")
+2. FETCH SELECTED DECK CONTENT:
+   - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
+   - This gets the full {deck_name} content from Supabase
 
 3. TWO-SWEEP CASE STUDY SEARCH (to ensure best matches):
 
@@ -147,7 +156,7 @@ Follow the complete workflow:
 
    COMBINE both sweeps, deduplicate, pick top 2-3
 
-4. Use generate_content with content_type="catalant_proposal" (mention "{deck_name}" in attachment)
+4. Use generate_content with deck content + case studies (mention "{deck_name}" in attachment)
 5. Use review_and_score to validate quality
 
 Return the final proposal with quality score.
@@ -158,19 +167,22 @@ Note: Use formal Catalant format (credentials-first, numbered projects, professi
 
 {user_input}
 
+DECK TO USE: {deck_name} (user selected - search for "{deck_query}" to get content)
+
 Follow the complete workflow:
 1. Check if a SPECIFIC company name is mentioned
    - If YES: call research_company with that company name
    - If NO: skip research_company
 
-2. Search for capability deck: "{deck_query}" (mode="detailed")
+2. FETCH SELECTED DECK CONTENT:
+   - Call search_relevant_projects for: "{deck_query}" (mode="detailed")
 
 3. TWO-SWEEP CASE STUDY SEARCH:
    FIRST SWEEP - Specific to their domain
    SECOND SWEEP - Broader relevant projects
    COMBINE and deduplicate
 
-4. Use generate_content for outreach email
+4. Use generate_content with deck content + case studies
 5. Use review_and_score to validate quality
 
 Return the final email with quality score."""
